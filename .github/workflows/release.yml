@@ -75,6 +75,12 @@ jobs:
         working-directory: dian
         run: npm run build -w packages
 
+      # 7.5 安装插件自身的 devDependencies（tsup, vite 等）
+      - name: Install plugin dependencies
+        if: steps.check.outputs.exists == 'false'
+        working-directory: dian/Dian-plugin-github
+        run: npm install
+
       # 8. 打包插件
       - name: Pack plugin
         if: steps.check.outputs.exists == 'false'
