@@ -2,8 +2,10 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - "package.json"
 
 jobs:
   release:
@@ -12,52 +14,88 @@ jobs:
       contents: write
 
     steps:
-      # 1. 拉取主仓库（提供 packages/plugin-runtime 等本地依赖）
+      # 1. 拉取本仓库
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      # 2. 读取当前 package.json 版本
+      - name: Get current version
+        id: current
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Current version: ${VERSION}"
+
+      # 3. 检查该版本是否已存在 Release
+      - name: Check if release exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "v${{ steps.current.outputs.version }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.current.outputs.version }} already exists, skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.current.outputs.version }} not found, will create"
+          fi
+
+      # 4. 拉取主仓库（提供 packages/plugin-runtime 等本地依赖）
       - name: Checkout Dian monorepo
+        if: steps.check.outputs.exists == 'false'
         uses: actions/checkout@v4
         with:
           repository: FinalDevHQ/Dian
           path: dian
 
-      # 2. 用本仓库内容覆盖 monorepo 里的 plugin-template 子目录
-      - name: Checkout plugin-template
+      # 5. 用本仓库内容覆盖 monorepo 里的 Dian-plugin-github 子目录
+      - name: Overlay plugin into monorepo
+        if: steps.check.outputs.exists == 'false'
         uses: actions/checkout@v4
         with:
-          path: dian/plugin-template
+          path: dian/Dian-plugin-github
 
       - name: Setup Node.js
+        if: steps.check.outputs.exists == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: dian/package-lock.json
 
-      # 3. 在 monorepo 根安装全部依赖（含原生模块）
+      # 6. 在 monorepo 根安装全部依赖
       - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
         working-directory: dian
         run: npm ci
 
-      # 4. 构建 packages（plugin-runtime 等本地依赖需要先编译出 dist）
+      # 7. 构建 packages（plugin-runtime 等本地依赖需要先编译出 dist）
       - name: Build packages
+        if: steps.check.outputs.exists == 'false'
         working-directory: dian
         run: npm run build -w packages
 
-      # 5. 打包插件
+      # 8. 打包插件
       - name: Pack plugin
-        working-directory: dian/plugin-template
+        if: steps.check.outputs.exists == 'false'
+        working-directory: dian/Dian-plugin-github
         run: npm run pack
 
-      # 6. 读取 zip 文件名（来自 package.json name 字段）
+      # 9. 读取 zip 文件名
       - name: Resolve zip filename
+        if: steps.check.outputs.exists == 'false'
         id: meta
-        working-directory: dian/plugin-template
+        working-directory: dian/Dian-plugin-github
         run: |
           NAME=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).name")
           echo "zip=${NAME}.zip" >> "$GITHUB_OUTPUT"
 
-      # 7. 创建 GitHub Release 并上传 zip
-      - name: Create GitHub Release
+      # 10. 创建 tag + GitHub Release 并上传 zip
+      - name: Create tag and release
+        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          files: dian/plugin-template/${{ steps.meta.outputs.zip }}
+          tag_name: v${{ steps.current.outputs.version }}
+          name: v${{ steps.current.outputs.version }}
+          files: dian/Dian-plugin-github/${{ steps.meta.outputs.zip }}
           generate_release_notes: true
