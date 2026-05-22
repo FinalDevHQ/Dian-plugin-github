@@ -1,6 +1,6 @@
-# github-sub
+# GitHub 订阅插件
 
-GitHub 仓库/用户订阅推送插件，监控 Commits、Issues、Pull Requests、Comments、Actions，渲染为图片推送到 QQ 群。
+GitHub 仓库/用户订阅推送插件，监控 Commits、Issues、Pull Requests、Comments、Actions，渲染为图片推送到群聊。
 
 > 适用版本：Dian `0.1.x` · plugin-runtime `0.2.x`
 
@@ -12,12 +12,15 @@ GitHub 仓库/用户订阅推送插件，监控 Commits、Issues、Pull Requests
 - **用户关注** — 监控指定 GitHub 用户的公开动态（Push、Issue、PR、Fork、Release 等）
 - **图片渲染** — 通过 Dian Puppeteer 插件将通知渲染为精美卡片图片推送
 - **自动识别** — 群内发送 GitHub 仓库链接时自动识别并展示仓库信息卡片
-- **自定义模板** — 支持为每种事件类型编写自定义 HTML 模板
+- **自定义模板** — 支持为每种事件类型编写自定义 HTML 模板，左右分栏实时预览
 - **主题系统** — 内置亮色 / 暗色主题，支持自定义主题色
-- **多 Token 轮换** — 配置多个 GitHub Token 自动轮换，提升 API 速率限制
+- **多 Token 轮换** — 配置多个 GitHub Token 自动轮换，提升 API 速率限制（每个 5000 次/小时）
 - **合并通知** — 可将同一仓库的多种更新合并为一张图片推送
 - **分支订阅** — 支持订阅多个分支，独立管理
-- **Web UI** — 完整的管理面板，包含仪表盘、配置、订阅管理、调试日志
+- **自定义指令** — 为系统指令设置别名，如 `github帮助` → `gh 帮助`
+- **指令注册** — 所有指令自动注册到框架，在插件管理页面可见
+- **日志持久化** — 调试日志保存到磁盘，重启不丢失
+- **Web UI** — 完整的管理面板，包含仪表盘、配置、订阅管理、模板编辑、指令中心、调试日志
 
 ---
 
@@ -79,17 +82,31 @@ npm run pack
 | `gh 取关 <用户名>` | 取消关注 | `gh 取关 octocat` |
 | `gh 关注列表` | 查看关注列表 | `gh 关注列表` |
 
+### 自定义别名
+
+在 Web UI 的「指令中心」页面可以为系统指令设置别名。例如：
+
+| 别名 | 映射指令 |
+|------|----------|
+| `github帮助` | `gh 帮助` |
+| `订阅仓库` | `gh 订阅` |
+| `我的订阅` | `gh 列表` |
+
 ---
 
 ## Web UI
 
 访问 `/plugins/github-sub/ui/` 打开管理面板，包含以下页面：
 
-- **仪表盘** — 订阅统计概览、系统信息
-- **基础配置** — Token、轮询间隔、主题、Puppeteer 服务设置
-- **订阅管理** — 查看/编辑/删除仓库订阅和用户关注
-- **添加订阅** — 添加仓库订阅或用户关注
-- **调试日志** — 查看实时日志输出
+| 页面 | 说明 |
+|------|------|
+| **仪表盘** | 订阅统计概览、运行时长、连接测试 |
+| **基础配置** | Token、轮询间隔、权限、Puppeteer 服务设置 |
+| **订阅管理** | 查看/编辑/删除仓库订阅和用户关注 |
+| **添加订阅** | 添加仓库订阅或用户关注 |
+| **自定义模板** | 左右分栏编辑 HTML 模板，实时预览效果 |
+| **指令中心** | 系统指令说明 + 自定义别名管理 |
+| **调试日志** | 实时日志查看，支持级别过滤 |
 
 ---
 
@@ -98,22 +115,19 @@ npm run pack
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | API Base URL | GitHub API 地址（可填 GitHub Enterprise 地址） | `https://api.github.com` |
-| Token | GitHub Personal Access Token（可选） | 空 |
+| Tokens | GitHub Personal Access Token（支持多个） | 空 |
 | 轮询间隔 | 检查更新的时间间隔（秒） | `30` |
 | 允许成员订阅 | 非管理员是否可以使用 `gh 订阅` 指令 | `true` |
 | 自动识别仓库链接 | 群内发送 GitHub 链接时自动识别 | `true` |
 | 合并通知模式 | 将同一仓库的多种更新合并为一张图 | `false` |
 | 渲染主题 | 亮色 / 暗色 / 自定义 | `light` |
-
-### 多 Token
-
-在 Web UI 的「基础配置」页面中可以添加多个 GitHub Token。插件会自动轮换使用，提升 API 速率限制。
+| 调试模式 | 输出详细调试日志 | `false` |
 
 ---
 
 ## 自定义模板
 
-在 Web UI 的「基础配置」页面可以为每种事件类型编写自定义 HTML 模板。
+在 Web UI 的「自定义模板」页面，左侧编辑 HTML 代码，右侧实时预览效果。
 
 ### 支持的模板类型
 
@@ -124,8 +138,6 @@ npm run pack
 - `actions` — GitHub Actions 运行结果
 
 ### 可用变量
-
-所有模板均可使用以下变量：
 
 | 变量 | 说明 |
 |------|------|
@@ -139,74 +151,38 @@ npm run pack
 
 **Commits：**
 ```json
-[
-  {
-    "sha": "abc123...",
-    "sha7": "abc1234",
-    "message": "commit message",
-    "author": "username",
-    "date": "2026-01-01T00:00:00Z",
-    "url": "https://github.com/...",
-    "files": [
-      {
-        "filename": "src/index.ts",
-        "status": "modified",
-        "additions": 10,
-        "deletions": 3,
-        "patch": "@@ -1,3 +1,10 @@\n+added line\n-removed line"
-      }
-    ]
-  }
-]
+[{
+  "sha": "abc123...", "sha7": "abc1234",
+  "message": "commit message", "author": "username",
+  "date": "2026-01-01T00:00:00Z", "url": "https://github.com/...",
+  "files": [{ "filename": "src/index.ts", "status": "modified", "additions": 10, "deletions": 3, "patch": "..." }]
+}]
 ```
 
 **Issues / Pull Requests：**
 ```json
-[
-  {
-    "number": 1,
-    "title": "Issue title",
-    "state": "open",
-    "action": "opened",
-    "author": "username",
-    "created_at": "2026-01-01T00:00:00Z",
-    "url": "https://github.com/...",
-    "labels": [{ "name": "bug", "color": "d73a4a" }]
-  }
-]
+[{
+  "number": 1, "title": "Issue title", "state": "open", "action": "opened",
+  "author": "username", "created_at": "2026-01-01T00:00:00Z", "url": "...",
+  "labels": [{ "name": "bug", "color": "d73a4a" }]
+}]
 ```
 
 **Comments：**
 ```json
-[
-  {
-    "number": 12,
-    "title": "Issue/PR title",
-    "body": "comment body",
-    "author": "username",
-    "created_at": "2026-01-01T00:00:00Z",
-    "url": "https://github.com/...",
-    "source": "issue"
-  }
-]
+[{
+  "number": 12, "title": "Issue/PR title", "body": "comment body",
+  "author": "username", "created_at": "2026-01-01T00:00:00Z", "url": "...", "source": "issue"
+}]
 ```
 
 **Actions：**
 ```json
-[
-  {
-    "id": 1,
-    "name": "CI",
-    "run_number": 42,
-    "status": "completed",
-    "conclusion": "success",
-    "actor": "username",
-    "event": "push",
-    "head_branch": "main",
-    "created_at": "2026-01-01T00:00:00Z",
-    "url": "https://github.com/..."
-  }
-]
+[{
+  "id": 1, "name": "CI", "run_number": 42, "status": "completed", "conclusion": "success",
+  "actor": "username", "event": "push", "head_branch": "main",
+  "created_at": "2026-01-01T00:00:00Z", "url": "..."
+}]
 ```
 
 ---
@@ -217,7 +193,7 @@ npm run pack
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/config` | 获取配置 |
+| GET | `/config` | 获取配置（token 脱敏） |
 | POST | `/config` | 更新配置 |
 | GET | `/status` | 获取插件状态 |
 | GET | `/groups` | 获取 Bot 群列表 |
@@ -242,37 +218,43 @@ npm run pack
 ```
 Dian-plugin-github/
 ├── src/
-│   ├── index.ts        ← 插件主入口（装饰器、路由、指令）
-│   ├── config.ts       ← 默认配置 & 配置读写
-│   ├── types.ts        ← TypeScript 类型定义
-│   ├── state.ts        ← 运行时状态管理
-│   ├── github.ts       ← GitHub API 请求封装
-│   ├── render.ts       ← 图片模板渲染（Puppeteer）
-│   ├── poller.ts       ← 定时轮询引擎
-│   └── version.ts      ← 版本号
+│   ├── index.ts           ← 插件入口（装饰器、拦截器、指令注册）
+│   ├── commands.ts        ← 系统指令处理（帮助、订阅、取消、关注等）
+│   ├── routes.ts          ← HTTP API 路由
+│   ├── poller.ts          ← 定时轮询引擎
+│   ├── extractors.ts      ← GitHub 事件数据提取
+│   ├── github.ts          ← GitHub API 请求封装
+│   ├── config.ts          ← 配置读写
+│   ├── state.ts           ← 运行时状态管理（配置/缓存/日志持久化）
+│   ├── types.ts           ← TypeScript 类型定义
+│   ├── version.ts         ← 版本号
+│   └── render/
+│       ├── index.ts       ← 渲染入口（导出渲染函数 + summary）
+│       ├── cards.ts       ← HTML 卡片生成（各类型通知）
+│       ├── templates.ts   ← 自定义模板变量替换
+│       ├── theme.ts       ← 主题定义 + SVG 图标
+│       └── utils.ts       ← 工具函数（esc、fmtNum 等）
 ├── ui/
-│   ├── App.tsx         ← React 主应用（路由）
-│   ├── api.ts          ← API 请求封装
-│   ├── main.tsx        ← 入口
-│   ├── index.css       ← 全局样式
-│   ├── types.ts        ← 前端类型
-│   ├── components.tsx  ← 通用组件
+│   ├── App.tsx            ← React 主应用（导航 + 路由）
+│   ├── api.ts             ← API 请求封装
+│   ├── main.tsx           ← 入口
+│   ├── index.css          ← 全局样式（Slate 色系）
+│   ├── types.ts           ← 前端类型
+│   ├── components.tsx     ← 通用组件
 │   ├── components/
-│   │   ├── Toast.tsx       ← Toast 提示
+│   │   ├── Toast.tsx      ← Toast 提示
 │   │   └── GroupPicker.tsx ← 群选择器
 │   └── pages/
-│       ├── Dashboard.tsx     ← 仪表盘
-│       ├── Config.tsx        ← 基础配置
-│       ├── Subscriptions.tsx ← 订阅管理
-│       ├── AddSub.tsx        ← 添加订阅
-│       └── Logs.tsx          ← 调试日志
-├── scripts/
-│   ├── pack.mjs        ← ZIP 打包脚本
-│   └── dev-sync.mjs    ← 远程开发同步脚本
+│       ├── Dashboard.tsx      ← 仪表盘（统计 + 连接测试）
+│       ├── Config.tsx         ← 基础配置（Token + 轮询 + 主题）
+│       ├── Subscriptions.tsx  ← 订阅管理（仓库 + 用户）
+│       ├── AddSub.tsx         ← 添加订阅
+│       ├── Template.tsx       ← 自定义模板（左右分栏编辑 + 预览）
+│       ├── Commands.tsx       ← 指令中心（系统指令 + 自定义别名）
+│       └── Logs.tsx           ← 调试日志
 ├── package.json
 ├── tsconfig.json
-├── tsup.config.ts      ← 后端构建配置
-└── tsconfig.json
+└── tsup.config.ts         ← 后端构建配置
 ```
 
 ---
