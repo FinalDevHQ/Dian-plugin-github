@@ -1,3 +1,4 @@
+import { setTimeout as setTimeout_, clearTimeout as clearTimeout_, setInterval as setInterval_ } from "node:timers";
 import type {
   GitHubEvent, CommitData, IssueData, CommentData, ActionRunData,
   EventType, UserActivityItem,
@@ -364,19 +365,19 @@ export async function poll(): Promise<void> {
   }
 }
 
-let startupTimer: ReturnType<typeof setTimeout> | null = null;
+let startupTimer: ReturnType<typeof setTimeout_> | null = null;
 
 export function startPoller(): void {
   const sec = Math.max(pluginState.config.interval || 30, 5);
   const userCount = (pluginState.config.userSubscriptions || []).length;
   pluginState.log("info", `轮询已启动，间隔 ${sec} 秒，共 ${pluginState.config.subscriptions.length} 个仓库订阅，${userCount} 个用户监控`);
-  if (startupTimer) clearTimeout(startupTimer);
-  startupTimer = setTimeout(() => { startupTimer = null; poll().catch(() => {}); }, 2000);
-  pluginState.setPollTimer(setInterval(() => poll().catch(() => {}), sec * 1000));
+  if (startupTimer) clearTimeout_(startupTimer);
+  startupTimer = setTimeout_(() => { startupTimer = null; poll().catch(() => {}); }, 2000);
+  pluginState.setPollTimer(setInterval_(() => poll().catch(() => {}), sec * 1000));
 }
 
 export function stopPoller(): void {
-  if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+  if (startupTimer) { clearTimeout_(startupTimer); startupTimer = null; }
   pluginState.clearPollTimer();
   pluginState.log("info", "轮询已停止");
 }
