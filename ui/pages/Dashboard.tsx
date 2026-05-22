@@ -9,7 +9,7 @@ function fmtUptime(s: number): string {
   return `${h}:${m}:${sec}`
 }
 
-export default function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
+export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page: string) => void; onVersion?: (v: string) => void }) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [cfg, setCfg] = useState<ConfigResponse | null>(null)
   const [pingResult, setPingResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null)
@@ -21,6 +21,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: string) =
       const [s, c] = await Promise.all([api<StatusResponse>("/status"), api<ConfigResponse>("/config")])
       setStatus(s)
       setCfg(c)
+      if (s?.version && onVersion) onVersion(s.version)
     } catch { /* ignore */ }
   }, [])
 

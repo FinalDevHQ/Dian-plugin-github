@@ -16,6 +16,7 @@ class PluginState {
   logBuffer: LogEntry[] = [];
   private readonly maxLogEntries = 500;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private logSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** 存储各群的 sendGroupMsg 回调，由 index.ts 在收到群消息时注册 */
   private groupSenders = new Map<string, (message: unknown) => Promise<void>>();
@@ -41,7 +42,9 @@ class PluginState {
     if (this.logBuffer.length > this.maxLogEntries) {
       this.logBuffer.splice(0, this.logBuffer.length - this.maxLogEntries);
     }
-    this.saveLogs();
+    // 防抖写入：500ms 内多次 push 只写一次磁盘
+    if (this.logSaveTimer) clearTimeout(this.logSaveTimer);
+    this.logSaveTimer = setTimeout(() => this.saveLogs(), 500);
   }
 
   saveLogs(): void {
@@ -86,8 +89,17 @@ class PluginState {
   loadCache(): void {
     try {
       const fp = join(this.dataPath, "cache.json");
-      if (existsSync(fp)) this.cache = JSON.parse(readFileSync(fp, "utf-8"));
-    } catch { /* ignore */ }
+      if (existsSync(fp)) {
+        const data = JSON.parse(readFileSync(fp, "utf-8")) as EventCache;
+        if (typeof data === "object" && data !== null) {
+          this.cache = data;
+        } else {
+          this.log("warn", "缓存文件格式异常，已重置");
+        }
+      }
+    } catch (e) {
+      this.log("warn", `缓存文件读取失败，已重置: ${e}`);
+    }
   }
 
   setPollTimer(timer: ReturnType<typeof setInterval>): void {

@@ -1,10 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PluginConfig } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = resolve(__dirname, "config.json");
+const DEFAULT_CONFIG_PATH = resolve(__dirname, "config.json");
 
 export const DEFAULT_CONFIG: PluginConfig = {
   command: "!hello",
@@ -27,15 +27,21 @@ export const DEFAULT_CONFIG: PluginConfig = {
   customCommands: [],
 };
 
-export function loadConfig(): PluginConfig {
+export function loadConfig(configPath?: string): PluginConfig {
+  const fp = configPath || DEFAULT_CONFIG_PATH;
   try {
-    if (existsSync(CONFIG_PATH)) {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as Partial<PluginConfig> };
+    if (existsSync(fp)) {
+      return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(fp, "utf8")) as Partial<PluginConfig> };
     }
   } catch { /* 读取失败时使用默认值 */ }
   return { ...DEFAULT_CONFIG };
 }
 
-export function saveConfig(cfg: PluginConfig): void {
-  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+export function saveConfig(cfg: PluginConfig, configPath?: string): void {
+  const fp = configPath || DEFAULT_CONFIG_PATH;
+  try {
+    const dir = dirname(fp);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(fp, JSON.stringify(cfg, null, 2), "utf-8");
+  } catch { /* ignore */ }
 }

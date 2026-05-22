@@ -29,7 +29,7 @@ async function fetchJSON<T>(url: string): Promise<T | null> {
   const start = Date.now();
   try {
     pluginState.debug(`[HTTP] GET ${url}`);
-    const res = await fetch(url, { headers: getHeaders() });
+    const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(15000) });
     const ms = Date.now() - start;
     pluginState.debug(`[HTTP] 响应: ${res.status} ${res.statusText} (${ms}ms)`);
 

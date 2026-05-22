@@ -3,6 +3,7 @@ import type { PluginConfig, Subscription, UserSubscription } from "./types.js";
 import { pluginState } from "./state.js";
 import { fetchDefaultBranch, fetchRepoInfo, fetchReadme } from "./github.js";
 import { renderRepoCard, repoSummary } from "./render/index.js";
+import { cleanupUserEvents } from "./poller.js";
 
 export function extractMessageText(ctx: EventContext): string {
   const payload = ctx.event.payload as Record<string, unknown>;
@@ -316,11 +317,13 @@ async function cmdUnfollow(ctx: EventContext, args: string[], config: PluginConf
       config.userSubscriptions = config.userSubscriptions.filter(
         (u) => u.username.toLowerCase() !== username.toLowerCase(),
       );
+      cleanupUserEvents(username);
     }
   } else {
     config.userSubscriptions = config.userSubscriptions.filter(
       (u) => u.username.toLowerCase() !== username.toLowerCase(),
     );
+    cleanupUserEvents(username);
   }
   syncConfig();
   await ctx.reply(`✅ 已取消关注 ${username}`);

@@ -22,10 +22,11 @@ const NAV: { id: Page; label: string; icon: React.JSX.Element }[] = [
 
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard")
+  const [version, setVersion] = useState("v1.0.0")
   const { show, ToastPortal } = useToast()
 
   const pages: Record<Page, React.ReactNode> = {
-    dashboard: <Dashboard onNavigate={(p) => setPage(p as Page)} />,
+    dashboard: <Dashboard onNavigate={(p) => setPage(p as Page)} onVersion={(v) => setVersion(`v${v}`)} />,
     config: <ConfigPage showToast={show} />,
     subs: <Subscriptions showToast={show} />,
     add: <AddSub showToast={show} />,
@@ -45,7 +46,7 @@ export default function App() {
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-900">GitHub 订阅</div>
-              <div className="text-[10px] text-slate-400">v1.0.0</div>
+              <div className="text-[10px] text-slate-400">{version}</div>
             </div>
           </div>
         </div>

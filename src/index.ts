@@ -25,6 +25,7 @@ import { setupRoutes } from "./routes.js";
 export default class GitHubSubPlugin {
   private readonly startTime = Date.now();
   private config: PluginConfig = loadConfig();
+  private runtimeConfigPath = "";
 
   @Handler(/^#?help$/i)
   async onHelp(ctx: EventContext): Promise<void> {
@@ -81,7 +82,7 @@ export default class GitHubSubPlugin {
 
   private syncConfig(): void {
     pluginState.config = this.config;
-    saveConfig(this.config);
+    saveConfig(this.config, this.runtimeConfigPath || undefined);
     stopPoller();
     if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
       startPoller();
@@ -99,8 +100,13 @@ export default class GitHubSubPlugin {
   }
 
   onSetup(ctx: PluginSetupContext): void {
+    this.runtimeConfigPath = (ctx as any).configPath ?? "";
+    // 使用运行时路径重新加载配置（如果存在）
+    if (this.runtimeConfigPath) {
+      this.config = loadConfig(this.runtimeConfigPath);
+    }
     pluginState.config = this.config;
-    pluginState.configPath = (ctx as any).configPath ?? "";
+    pluginState.configPath = this.runtimeConfigPath;
     pluginState.dataPath = (ctx as any).dataPath ?? "";
     pluginState.loadCache();
     pluginState.loadLogs();

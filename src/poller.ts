@@ -99,7 +99,9 @@ async function checkRepo(
     const commits = extractCommits(newEvents, branch);
     pluginState.debug(`[轮询] ${repo}: 提取到 ${commits.length} 条 Commit`);
     if (commits.length) {
-      await Promise.all(commits.map(async (c) => {
+      // 只获取最近 3 个 commit 的详情，避免 API 速率限制
+      const toDetail = commits.slice(0, 3);
+      await Promise.all(toDetail.map(async (c) => {
         try {
           const detail = await fetchCommitDetail(repo, c.sha);
           if (detail?.files) {
@@ -112,7 +114,9 @@ async function checkRepo(
           if (detail?.commit?.message && c.commit.message.startsWith("Push to ")) {
             c.commit.message = detail.commit.message;
           }
-        } catch { /* ignore */ }
+        } catch (e) {
+          pluginState.debug(`[轮询] ${repo} commit ${c.sha.slice(0, 7)} 详情获取失败: ${e}`);
+        }
       }));
       if (collect) { collected.commits = commits; } else {
         pluginState.log("info", `[${repo}] 推送 ${commits.length} 条新 Commit 到 ${groups.length} 个群`);
@@ -372,12 +376,17 @@ export function startPoller(): void {
   const userCount = (pluginState.config.userSubscriptions || []).length;
   pluginState.log("info", `轮询已启动，间隔 ${sec} 秒，共 ${pluginState.config.subscriptions.length} 个仓库订阅，${userCount} 个用户监控`);
   if (startupTimer) clearTimeout_(startupTimer);
-  startupTimer = setTimeout_(() => { startupTimer = null; poll().catch(() => {}); }, 2000);
-  pluginState.setPollTimer(setInterval_(() => poll().catch(() => {}), sec * 1000));
+  startupTimer = setTimeout_(() => { startupTimer = null; poll().catch((e) => pluginState.log("error", `[定时] 首次轮询异常: ${e}`)); }, 2000);
+  pluginState.setPollTimer(setInterval_(() => poll().catch((e) => pluginState.log("error", `[定时] 轮询异常: ${e}`)), sec * 1000));
 }
 
 export function stopPoller(): void {
   if (startupTimer) { clearTimeout_(startupTimer); startupTimer = null; }
   pluginState.clearPollTimer();
   pluginState.log("info", "轮询已停止");
+}
+
+/** 清理已取消关注用户的去重记录 */
+export function cleanupUserEvents(username: string): void {
+  sentUserEventIds.delete(username);
 }

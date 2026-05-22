@@ -108,7 +108,12 @@ export function setupRoutes(
       config.customCommands = body.customCommands as any;
     }
     syncConfig();
-    reply.send({ ok: true, config });
+    const safeConfig = {
+      ...config,
+      token: config.token ? "***" : "",
+      tokens: (config.tokens || []).map((t) => (t ? "***" : "")),
+    };
+    reply.send({ ok: true, config: safeConfig });
   });
 
   // ── GET /status ──

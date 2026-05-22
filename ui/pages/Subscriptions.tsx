@@ -23,35 +23,65 @@ export default function Subscriptions({ showToast }: { showToast: (msg: string, 
   useEffect(() => { load() }, [load])
 
   const toggleSub = async (sub: Subscription) => {
-    await api("/sub/toggle", { repo: sub.repo, branch: sub.branch })
-    load()
+    try {
+      await api("/sub/toggle", { repo: sub.repo, branch: sub.branch })
+      load()
+    } catch (e: any) {
+      showToast(`操作失败: ${e.message}`, false)
+    }
   }
 
   const deleteSub = (sub: Subscription) => {
     setConfirm({
       msg: `确认删除 ${sub.repo} (${sub.branch}) 的订阅？`,
-      onOk: async () => { await api("/sub/delete", { repo: sub.repo, branch: sub.branch }); showToast("已删除"); load(); setConfirm(null) },
+      onOk: async () => {
+        try {
+          await api("/sub/delete", { repo: sub.repo, branch: sub.branch })
+          showToast("已删除")
+          load()
+          setConfirm(null)
+        } catch (e: any) {
+          showToast(`删除失败: ${e.message}`, false)
+        }
+      },
     })
   }
 
   const toggleUser = async (u: UserSubscription) => {
-    await api("/user/toggle", { username: u.username })
-    load()
+    try {
+      await api("/user/toggle", { username: u.username })
+      load()
+    } catch (e: any) {
+      showToast(`操作失败: ${e.message}`, false)
+    }
   }
 
   const deleteUser = (u: UserSubscription) => {
     setConfirm({
       msg: `确认取消关注 ${u.username}？`,
-      onOk: async () => { await api("/user/delete", { username: u.username }); showToast("已取消关注"); load(); setConfirm(null) },
+      onOk: async () => {
+        try {
+          await api("/user/delete", { username: u.username })
+          showToast("已取消关注")
+          load()
+          setConfirm(null)
+        } catch (e: any) {
+          showToast(`操作失败: ${e.message}`, false)
+        }
+      },
     })
   }
 
   const saveSubGroups = async () => {
     if (!editingSub) return
-    await api("/sub/update", { repo: editingSub.repo, branch: editingSub.branch, groups: editingSub.groups })
-    showToast("已保存")
-    setEditingSub(null)
-    load()
+    try {
+      await api("/sub/update", { repo: editingSub.repo, branch: editingSub.branch, groups: editingSub.groups })
+      showToast("已保存")
+      setEditingSub(null)
+      load()
+    } catch (e: any) {
+      showToast(`保存失败: ${e.message}`, false)
+    }
   }
 
   return (
