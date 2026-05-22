@@ -10,6 +10,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: __dirname,
   base: "./",
+  server: {
+    proxy: {
+      "/plugins": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: resolve(__dirname, "../dist/public"),
     emptyOutDir: true,

@@ -35,7 +35,7 @@ async function loadConfig() {
   } catch { /* ignore */ }
 
   const wsUrl     = process.env.DIAN_DEV_WS_URL     ?? file.wsUrl     ?? "ws://127.0.0.1:3901";
-  const token     = process.env.DIAN_DEV_TOKEN     ?? file.token     ?? "";
+  const token     = process.env.DIAN_DEV_TOKEN     ?? file.token     ?? "123456789";
   const pluginName = process.env.DIAN_DEV_PLUGIN_NAME ?? file.pluginName ?? pkg.name ?? "my-plugin";
   const distDir   = process.env.DIAN_DEV_DIST_DIR   ?? file.distDir   ?? "dist";
   const debounceMs = Number(process.env.DIAN_DEV_DEBOUNCE ?? file.debounceMs ?? 300);

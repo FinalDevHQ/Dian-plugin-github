@@ -1,7 +1,7 @@
 {
-  "name": "hello-world",
+  "name": "github-sub",
   "version": "1.0.0",
-  "description": "Dian 插件模板 — Hello World",
+  "description": "GitHub 仓库/用户订阅推送插件",
   "type": "module",
   "scripts": {
     "build": "tsup && vite build --config ui/vite.config.ts",
