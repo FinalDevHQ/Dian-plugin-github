@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { api } from "../api"
 import type { BranchInfo, GroupInfo, EventType } from "../types"
 import { GroupPicker } from "../components/GroupPicker"
@@ -91,76 +91,98 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
     }
   }
 
-  const typeOptions: { value: EventType; label: string; color: string }[] = [
-    { value: "commits", label: "Commits", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-    { value: "issues", label: "Issues", color: "bg-purple-100 text-purple-700 border-purple-200" },
-    { value: "pulls", label: "Pull Requests", color: "bg-blue-100 text-blue-700 border-blue-200" },
-    { value: "actions", label: "Actions", color: "bg-amber-100 text-amber-700 border-amber-200" },
+  const typeOptions: { value: EventType; label: string; color: string; activeColor: string }[] = [
+    { value: "commits", label: "Commits", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-emerald-500 bg-emerald-50 text-emerald-700" },
+    { value: "issues", label: "Issues", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-violet-500 bg-violet-50 text-violet-700" },
+    { value: "pulls", label: "Pull Requests", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-blue-500 bg-blue-50 text-blue-700" },
+    { value: "actions", label: "Actions", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-amber-500 bg-amber-50 text-amber-700" },
   ]
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-base font-semibold">添加订阅</h2>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-xl font-bold text-slate-900">添加订阅</h1>
 
-      {/* 切换模式 */}
-      <div className="flex gap-2">
-        <button onClick={() => setUserMode(false)} className={`h-8 rounded-md px-3 text-xs font-medium border ${!userMode ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
-          📦 订阅仓库
+      {/* 模式切换 */}
+      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+        <button
+          onClick={() => setUserMode(false)}
+          className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all ${
+            !userMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          订阅仓库
         </button>
-        <button onClick={() => setUserMode(true)} className={`h-8 rounded-md px-3 text-xs font-medium border ${userMode ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
-          👤 关注用户
+        <button
+          onClick={() => setUserMode(true)}
+          className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all ${
+            userMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          关注用户
         </button>
       </div>
 
       {!userMode ? (
-        /* ── 仓库订阅 ── */
-        <div className="rounded-xl border bg-card p-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">仓库地址</span>
-            <div className="flex gap-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {/* 仓库地址 */}
+          <div className="flex flex-col gap-2 mb-6">
+            <label className="text-xs font-medium text-slate-500">仓库地址</label>
+            <div className="flex gap-3">
               <input
-                className="flex-1 h-9 rounded-md border bg-input/30 px-3 text-sm outline-none focus-visible:border-ring"
+                className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
                 placeholder="owner/repo"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && fetchBranches()}
               />
-              <button onClick={fetchBranches} disabled={fetching} className="h-9 rounded-md border px-3 text-xs hover:bg-accent disabled:opacity-50 shrink-0">
-                {fetching ? "获取中..." : "获取分支"}
+              <button
+                onClick={fetchBranches}
+                disabled={fetching}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors shrink-0"
+              >
+                {fetching ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    获取中...
+                  </span>
+                ) : "获取分支"}
               </button>
             </div>
           </div>
 
+          {/* 分支选择 */}
           {branches.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">选择分支</span>
-                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-500">选择分支</label>
+                <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
                   <input type="checkbox" checked={useManual} onChange={(e) => setUseManual(e.target.checked)} className="rounded" />
                   手动输入
                 </label>
               </div>
               {useManual ? (
                 <input
-                  className="h-9 rounded-md border bg-input/30 px-3 text-sm outline-none focus-visible:border-ring"
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
                   placeholder="分支名，默认 main"
                   value={manualBranch}
                   onChange={(e) => setManualBranch(e.target.value)}
                 />
               ) : (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {branches.map((b) => (
                     <button
                       key={b.name}
                       onClick={() => setSelectedBranches((prev) => prev.includes(b.name) ? prev.filter((x) => x !== b.name) : [...prev, b.name])}
-                      className={`h-7 rounded-md border px-2 text-[11px] font-medium transition-colors ${
+                      className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
                         selectedBranches.includes(b.name)
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-accent"
+                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
                       {b.name}
-                      {b.isDefault && <span className="ml-1 text-[9px] opacity-70">default</span>}
+                      {b.isDefault && <span className="ml-1.5 text-[9px] opacity-60">default</span>}
                     </button>
                   ))}
                 </div>
@@ -168,15 +190,16 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">监控类型</span>
-            <div className="flex flex-wrap gap-1.5">
+          {/* 监控类型 */}
+          <div className="mb-6">
+            <label className="text-xs font-medium text-slate-500 mb-2 block">监控类型</label>
+            <div className="flex flex-wrap gap-2">
               {typeOptions.map((t) => (
                 <button
                   key={t.value}
                   onClick={() => toggleType(t.value)}
-                  className={`h-7 rounded-md border px-2 text-[11px] font-medium transition-colors ${
-                    types.includes(t.value) ? t.color : "hover:bg-accent"
+                  className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
+                    types.includes(t.value) ? t.activeColor : t.color
                   }`}
                 >
                   {t.label}
@@ -185,45 +208,47 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">推送群</span>
+          {/* 推送群 */}
+          <div className="mb-6">
+            <label className="text-xs font-medium text-slate-500 mb-2 block">推送群</label>
             <GroupPicker groups={groups} allGroups={allGroups} onChange={setGroups} />
           </div>
 
           <button
             onClick={addRepoSub}
             disabled={loading || !repo.includes("/")}
-            className="h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 w-full"
+            className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
           >
             {loading ? "添加中..." : "添加订阅"}
           </button>
         </div>
       ) : (
-        /* ── 用户关注 ── */
-        <div className="rounded-xl border bg-card p-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">GitHub 用户名</span>
-            <input
-              className="h-9 rounded-md border bg-input/30 px-3 text-sm outline-none focus-visible:border-ring"
-              placeholder="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addUserSub()}
-            />
-          </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="max-w-md">
+            <div className="flex flex-col gap-2 mb-6">
+              <label className="text-xs font-medium text-slate-500">GitHub 用户名</label>
+              <input
+                className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addUserSub()}
+              />
+            </div>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">推送群</span>
-            <GroupPicker groups={userGroups} allGroups={allGroups} onChange={setUserGroups} />
-          </div>
+            <div className="mb-6">
+              <label className="text-xs font-medium text-slate-500 mb-2 block">推送群</label>
+              <GroupPicker groups={userGroups} allGroups={allGroups} onChange={setUserGroups} />
+            </div>
 
-          <button
-            onClick={addUserSub}
-            disabled={loading || !username.trim()}
-            className="h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 w-full"
-          >
-            {loading ? "关注中..." : "关注用户"}
-          </button>
+            <button
+              onClick={addUserSub}
+              disabled={loading || !username.trim()}
+              className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {loading ? "关注中..." : "关注用户"}
+            </button>
+          </div>
         </div>
       )}
     </div>

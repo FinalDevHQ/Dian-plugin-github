@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { api } from "../api"
-import type { Subscription, UserSubscription, Config, GroupInfo } from "../types"
+import type { Subscription, UserSubscription, GroupInfo } from "../types"
 import { ConfirmModal } from "../components/Toast"
 import { GroupPicker } from "../components/GroupPicker"
 
@@ -55,36 +55,51 @@ export default function Subscriptions({ showToast }: { showToast: (msg: string, 
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-base font-semibold">订阅管理</h2>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-xl font-bold text-slate-900">订阅管理</h1>
 
       {/* 仓库订阅 */}
-      <div className="rounded-xl border bg-card">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <span className="text-xs font-medium">仓库订阅 ({subs.length})</span>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-slate-400"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            <h3 className="text-sm font-semibold text-slate-900">仓库订阅</h3>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{subs.length}</span>
+          </div>
         </div>
         {subs.length === 0 ? (
-          <p className="py-8 text-center text-xs text-muted-foreground">暂无订阅，前往「添加订阅」页面添加</p>
+          <div className="py-16 text-center">
+            <div className="text-4xl mb-3 opacity-30">📦</div>
+            <p className="text-sm text-slate-400">暂无订阅</p>
+            <p className="text-xs text-slate-300 mt-1">前往「添加订阅」页面添加</p>
+          </div>
         ) : (
-          <div className="divide-y">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
             {subs.map((s, i) => (
-              <div key={i} className="px-4 py-3 flex items-center gap-3">
-                <button onClick={() => toggleSub(s)} className={s.enabled ? "text-emerald-500" : "text-red-500"}>
-                  {s.enabled ? "🟢" : "🔴"}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{s.repo}</div>
-                  <div className="text-[11px] text-muted-foreground">{s.branch} · {s.types.join(", ")}</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {s.groups.map((gid) => {
-                      const g = groups.find((x) => String(x.group_id) === gid)
-                      return <span key={gid} className="rounded bg-muted px-1 py-0.5 text-[10px]">{g ? String(g.group_name) : gid}</span>
-                    })}
-                    {s.groups.length === 0 && <span className="text-[10px] text-muted-foreground">未分配群</span>}
+              <div key={i} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <button onClick={() => toggleSub(s)} className={`size-2.5 rounded-full shrink-0 transition-colors ${s.enabled ? "bg-emerald-500 hover:bg-emerald-400" : "bg-slate-300 hover:bg-slate-400"}`} />
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{s.repo}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{s.branch}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setEditingSub({ ...s })} className="h-7 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition-colors">编辑</button>
+                    <button onClick={() => deleteSub(s)} className="h-7 rounded-lg border border-red-200 bg-white px-2.5 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors">删除</button>
                   </div>
                 </div>
-                <button onClick={() => setEditingSub({ ...s })} className="h-7 rounded border px-2 text-[11px] hover:bg-accent">编辑</button>
-                <button onClick={() => deleteSub(s)} className="h-7 rounded border border-destructive/30 px-2 text-[11px] text-destructive hover:bg-red-50">删除</button>
+                <div className="flex flex-wrap gap-1.5">
+                  {s.types.map((t) => (
+                    <span key={t} className="rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">{t}</span>
+                  ))}
+                  {s.groups.map((gid) => {
+                    const g = groups.find((x) => String(x.group_id) === gid)
+                    return <span key={gid} className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-white">{g ? String(g.group_name) : gid}</span>
+                  })}
+                  {s.groups.length === 0 && <span className="text-[10px] text-slate-300 italic">未分配群</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -92,29 +107,36 @@ export default function Subscriptions({ showToast }: { showToast: (msg: string, 
       </div>
 
       {/* 用户关注 */}
-      <div className="rounded-xl border bg-card">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <span className="text-xs font-medium">用户关注 ({userSubs.length})</span>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-slate-400"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <h3 className="text-sm font-semibold text-slate-900">用户关注</h3>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{userSubs.length}</span>
+          </div>
         </div>
         {userSubs.length === 0 ? (
-          <p className="py-8 text-center text-xs text-muted-foreground">暂无关注</p>
+          <div className="py-16 text-center">
+            <div className="text-4xl mb-3 opacity-30">👤</div>
+            <p className="text-sm text-slate-400">暂无关注</p>
+          </div>
         ) : (
-          <div className="divide-y">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
             {userSubs.map((u, i) => (
-              <div key={i} className="px-4 py-3 flex items-center gap-3">
-                <button onClick={() => toggleUser(u)} className={u.enabled ? "text-emerald-500" : "text-red-500"}>
-                  {u.enabled ? "🟢" : "🔴"}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{u.username}</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {u.groups.map((gid) => {
-                      const g = groups.find((x) => String(x.group_id) === gid)
-                      return <span key={gid} className="rounded bg-muted px-1 py-0.5 text-[10px]">{g ? String(g.group_name) : gid}</span>
-                    })}
+              <div key={i} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 hover:bg-slate-50 transition-colors">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <button onClick={() => toggleUser(u)} className={`size-2.5 rounded-full shrink-0 transition-colors ${u.enabled ? "bg-emerald-500 hover:bg-emerald-400" : "bg-slate-300 hover:bg-slate-400"}`} />
+                    <span className="text-sm font-semibold text-slate-800">{u.username}</span>
                   </div>
+                  <button onClick={() => deleteUser(u)} className="h-7 rounded-lg border border-red-200 bg-white px-2.5 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors">取消关注</button>
                 </div>
-                <button onClick={() => deleteUser(u)} className="h-7 rounded border border-destructive/30 px-2 text-[11px] text-destructive hover:bg-red-50">取消关注</button>
+                <div className="flex flex-wrap gap-1.5">
+                  {u.groups.map((gid) => {
+                    const g = groups.find((x) => String(x.group_id) === gid)
+                    return <span key={gid} className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-white">{g ? String(g.group_name) : gid}</span>
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -123,13 +145,14 @@ export default function Subscriptions({ showToast }: { showToast: (msg: string, 
 
       {/* 编辑群弹窗 */}
       {editingSub && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditingSub(null)}>
-          <div className="rounded-xl border bg-card p-5 shadow-xl w-96" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-medium mb-3">编辑推送群 - {editingSub.repo}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setEditingSub(null)}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-900 mb-4">编辑推送群</h3>
+            <p className="text-sm text-slate-500 mb-4">{editingSub.repo} ({editingSub.branch})</p>
             <GroupPicker groups={editingSub.groups} allGroups={groups} onChange={(g) => setEditingSub({ ...editingSub, groups: g })} />
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditingSub(null)} className="h-8 rounded-md border px-3 text-xs hover:bg-accent">取消</button>
-              <button onClick={saveSubGroups} className="h-8 rounded-md bg-primary text-primary-foreground px-3 text-xs hover:bg-primary/90">保存</button>
+            <div className="flex justify-end gap-2.5 mt-6">
+              <button onClick={() => setEditingSub(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">取消</button>
+              <button onClick={saveSubGroups} className="h-9 rounded-xl bg-slate-900 text-white px-4 text-sm font-medium hover:bg-slate-800 transition-colors">保存</button>
             </div>
           </div>
         </div>
