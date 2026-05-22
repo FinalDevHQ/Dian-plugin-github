@@ -30,9 +30,6 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
     setSaving(true)
     try {
       const { tokenCount: _, ...payload } = cfg as any
-      if (cfg.token && !(cfg.tokens || []).length) {
-        payload.tokens = [cfg.token]
-      }
       await api("/config", payload)
       showToast("保存成功")
       load()
@@ -72,7 +69,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
               <p className="text-[11px] text-slate-400">
                 支持多个 Token 轮询，自动切换以绕过 GitHub API 速率限制（每个 Token 5000 次/小时）
               </p>
-              {(cfg.tokens || []).length === 0 && !cfg.token && (
+              {(!cfg.tokens || cfg.tokens.length === 0) && (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
                   <p className="text-xs text-slate-400">暂无 Token，点击下方按钮添加</p>
                 </div>
@@ -85,46 +82,22 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
                     className="flex-1 h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-mono outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
                     value={t}
                     onChange={(e) => {
-                      const newTokens = [...(cfg.tokens || [])]
+                      const newTokens = [...cfg.tokens]
                       newTokens[i] = e.target.value
                       update({ tokens: newTokens })
                     }}
                     placeholder="ghp_xxxx"
                   />
                   <button
-                    onClick={() => {
-                      const newTokens = (cfg.tokens || []).filter((_, j) => j !== i)
-                      update({ tokens: newTokens })
-                    }}
+                    onClick={() => update({ tokens: cfg.tokens.filter((_, j) => j !== i) })}
                     className="h-9 rounded-lg border border-red-200 bg-white px-2 text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors shrink-0"
                   >
                     删除
                   </button>
                 </div>
               ))}
-              {cfg.token && !(cfg.tokens || []).length && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-300 font-mono w-5 shrink-0">#1</span>
-                  <input
-                    type="password"
-                    className="flex-1 h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-mono outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
-                    value={cfg.token}
-                    onChange={(e) => update({ token: e.target.value })}
-                    placeholder="ghp_xxxx"
-                  />
-                  <button
-                    onClick={() => update({ token: "" })}
-                    className="h-9 rounded-lg border border-red-200 bg-white px-2 text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                  >
-                    删除
-                  </button>
-                </div>
-              )}
               <button
-                onClick={() => {
-                  const current = cfg.token && !(cfg.tokens || []).length ? [cfg.token, ""] : [...(cfg.tokens || []), ""]
-                  update({ tokens: current, token: "" })
-                }}
+                onClick={() => update({ tokens: [...(cfg.tokens || []), ""] })}
                 className="h-9 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-medium text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition-colors"
               >
                 + 添加 Token
@@ -134,7 +107,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
               <span className="text-xs text-slate-500">已配置</span>
               <span className="inline-flex items-center justify-center size-5 rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                {cfg.tokenCount || 0}
+                {(cfg.tokens || []).filter((t) => t.trim()).length}
               </span>
               <span className="text-xs text-slate-500">个 Token</span>
             </div>
