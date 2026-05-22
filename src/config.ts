@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
   puppeteerPlugin: "puppeteer",
   subscriptions: [],
   userSubscriptions: [],
+  customCommands: [],
 };
 
 export function loadConfig(): PluginConfig {

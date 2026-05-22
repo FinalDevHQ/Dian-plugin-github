@@ -103,7 +103,7 @@ export async function handleCommand(
   }
 }
 
-async function cmdHelp(ctx: EventContext): Promise<void> {
+export async function cmdHelp(ctx: EventContext): Promise<void> {
   await ctx.reply(
     `🐙 GitHub 订阅指令:\n` +
     `gh 订阅 <owner/repo> [branch] - 订阅仓库\n` +

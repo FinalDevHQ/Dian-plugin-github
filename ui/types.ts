@@ -45,6 +45,7 @@ export interface ConfigResponse {
   config: Config
   subscriptions: Subscription[]
   userSubscriptions: UserSubscription[]
+  customCommands: CustomCommand[]
 }
 
 export interface StatusResponse {
@@ -70,4 +71,11 @@ export interface LogEntry {
 export interface GroupInfo {
   group_id: number | string
   group_name: string
+}
+
+export interface CustomCommand {
+  id: string
+  alias: string
+  command: string
+  enabled: boolean
 }

@@ -37,6 +37,7 @@ export function setupRoutes(
         theme: config.theme || "light",
         customTheme: config.customTheme || null,
         customHTML: config.customHTML || null,
+        customCommands: config.customCommands || [],
       },
       subscriptions: config.subscriptions,
       userSubscriptions: config.userSubscriptions || [],
@@ -102,6 +103,9 @@ export function setupRoutes(
     }
     if (body.customHTML !== undefined && typeof body.customHTML === "object" && body.customHTML !== null) {
       config.customHTML = body.customHTML as any;
+    }
+    if (body.customCommands !== undefined && Array.isArray(body.customCommands)) {
+      config.customCommands = body.customCommands as any;
     }
     syncConfig();
     reply.send({ ok: true, config });

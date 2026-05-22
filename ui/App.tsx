@@ -5,9 +5,10 @@ import ConfigPage from "./pages/Config"
 import Subscriptions from "./pages/Subscriptions"
 import AddSub from "./pages/AddSub"
 import TemplatePage from "./pages/Template"
+import CommandsPage from "./pages/Commands"
 import Logs from "./pages/Logs"
 
-type Page = "dashboard" | "config" | "subs" | "add" | "template" | "logs"
+type Page = "dashboard" | "config" | "subs" | "add" | "template" | "commands" | "logs"
 
 const NAV: { id: Page; label: string; icon: React.JSX.Element }[] = [
   { id: "dashboard", label: "仪表盘", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> },
@@ -15,6 +16,7 @@ const NAV: { id: Page; label: string; icon: React.JSX.Element }[] = [
   { id: "subs", label: "订阅管理", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/></svg> },
   { id: "add", label: "添加订阅", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> },
   { id: "template", label: "自定义模板", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg> },
+  { id: "commands", label: "指令中心", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> },
   { id: "logs", label: "调试日志", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> },
 ]
 
@@ -28,6 +30,7 @@ export default function App() {
     subs: <Subscriptions showToast={show} />,
     add: <AddSub showToast={show} />,
     template: <TemplatePage showToast={show} />,
+    commands: <CommandsPage showToast={show} />,
     logs: <Logs showToast={show} />,
   }
 

@@ -57,6 +57,7 @@ export interface PluginConfig {
   webuiPort?: number;
   subscriptions: Subscription[];
   userSubscriptions: UserSubscription[];
+  customCommands: CustomCommand[];
 }
 
 export interface EventCache {
@@ -158,4 +159,11 @@ export interface LogEntry {
   time: number;
   level: string;
   msg: string;
+}
+
+export interface CustomCommand {
+  id: string;
+  alias: string;
+  command: string;
+  enabled: boolean;
 }
