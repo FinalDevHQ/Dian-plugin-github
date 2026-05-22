@@ -171,7 +171,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: string) =
   )
 }
 
-function StatCard({ label, value, icon, accent }: { label: string; value: string | number; icon: JSX.Element; accent: string }) {
+function StatCard({ label, value, icon, accent }: { label: string; value: string | number; icon: React.JSX.Element; accent: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">

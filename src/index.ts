@@ -78,6 +78,7 @@ export default class GitHubSubPlugin {
     pluginState.configPath = (ctx as any).configPath ?? "";
     pluginState.dataPath = (ctx as any).dataPath ?? "";
     pluginState.loadCache();
+    pluginState.loadLogs();
 
     if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
       startPoller();

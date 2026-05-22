@@ -33,6 +33,7 @@ class PluginState {
 
   clearLogs(): void {
     this.logBuffer = [];
+    this.saveLogs();
   }
 
   private pushLog(level: string, msg: string): void {
@@ -40,6 +41,26 @@ class PluginState {
     if (this.logBuffer.length > this.maxLogEntries) {
       this.logBuffer.splice(0, this.logBuffer.length - this.maxLogEntries);
     }
+    this.saveLogs();
+  }
+
+  saveLogs(): void {
+    if (!this.dataPath) return;
+    try {
+      const fp = join(this.dataPath, "logs.json");
+      if (!existsSync(this.dataPath)) mkdirSync(this.dataPath, { recursive: true });
+      writeFileSync(fp, JSON.stringify(this.logBuffer), "utf-8");
+    } catch { /* ignore */ }
+  }
+
+  loadLogs(): void {
+    try {
+      const fp = join(this.dataPath, "logs.json");
+      if (existsSync(fp)) {
+        const data = JSON.parse(readFileSync(fp, "utf-8")) as LogEntry[];
+        if (Array.isArray(data)) this.logBuffer = data;
+      }
+    } catch { /* ignore */ }
   }
 
   saveConfig(): void {

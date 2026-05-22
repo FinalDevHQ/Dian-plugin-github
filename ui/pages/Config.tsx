@@ -6,8 +6,6 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
   const [cfg, setCfg] = useState<Config | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tplType, setTplType] = useState<TemplateType>("commits")
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -27,36 +25,11 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
 
   const update = (patch: Partial<Config>) => setCfg((c) => c ? { ...c, ...patch } : c)
 
-  const updateTemplate = (type: TemplateType, value: string) => {
-    setPreviewHtml(null)
-    setCfg((c) => {
-      if (!c) return c
-      const customHTML = { ...(c.customHTML || {}) }
-      if (value.trim()) customHTML[type] = value
-      else delete customHTML[type]
-      return { ...c, customHTML }
-    })
-  }
-
-  const clearTemplate = () => updateTemplate(tplType, "")
-
-  const previewTemplate = () => {
-    const html = cfg?.customHTML?.[tplType]?.trim()
-    if (!html) {
-      showToast("模板为空，无法预览", false)
-      return
-    }
-    setPreviewHtml(applyTemplateSample(html, tplType))
-  }
-
   const save = async () => {
     if (!cfg) return
     setSaving(true)
     try {
-      // tokenCount 是 UI 专用字段，不发送到后端
-      // tokens 数组需要发送到后端保存
       const { tokenCount: _, ...payload } = cfg as any
-      // 如果使用旧版单 token 模式，同步到 tokens 数组
       if (cfg.token && !(cfg.tokens || []).length) {
         payload.tokens = [cfg.token]
       }
@@ -129,7 +102,6 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
                   </button>
                 </div>
               ))}
-              {/* 兼容旧版单 token */}
               {cfg.token && !(cfg.tokens || []).length && (
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-300 font-mono w-5 shrink-0">#1</span>
@@ -227,56 +199,6 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
         </div>
       </Section>
 
-      {/* 自定义模板 */}
-      <Section title="自定义 HTML 模板" icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg>}>
-        <div className="flex flex-col gap-4">
-          <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-xs leading-6 text-slate-500">
-            <div className="font-semibold text-slate-700 mb-1">可用变量</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <span><code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">{"{{repo}}"}</code> 仓库名</span>
-              <span><code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">{"{{count}}"}</code> 更新数量</span>
-              <span><code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">{"{{type}}"}</code> 类型</span>
-              <span><code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">{"{{time}}"}</code> 当前时间</span>
-              <span><code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">{"{{items}}"}</code> JSON 数组</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_TYPES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => { setTplType(t.value); setPreviewHtml(null) }}
-                className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
-                  tplType === t.value
-                    ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <textarea
-            className="min-h-72 rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs leading-6 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
-            value={cfg.customHTML?.[tplType] || ""}
-            onChange={(e) => updateTemplate(tplType, e.target.value)}
-            placeholder="留空使用内置模板，输入完整 HTML 文档（含 <!DOCTYPE html>）..."
-          />
-
-          <div className="flex gap-2">
-            <button onClick={clearTemplate} className="h-9 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">清空当前模板</button>
-            <button onClick={previewTemplate} className="h-9 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">预览</button>
-          </div>
-
-          {previewHtml && (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <iframe title="模板预览" className="h-96 w-full" srcDoc={previewHtml} />
-            </div>
-          )}
-        </div>
-      </Section>
-
       {/* 保存按钮 */}
       <button
         onClick={save}
@@ -294,33 +216,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
   )
 }
 
-type TemplateType = "commits" | "issues" | "pulls" | "comments" | "actions"
-
-const TEMPLATE_TYPES: { value: TemplateType; label: string }[] = [
-  { value: "commits", label: "Commits" },
-  { value: "issues", label: "Issues" },
-  { value: "pulls", label: "Pull Requests" },
-  { value: "comments", label: "Comments" },
-  { value: "actions", label: "Actions" },
-]
-
-function applyTemplateSample(html: string, type: TemplateType): string {
-  const items = type === "commits"
-    ? [{ sha: "abc1234567890", sha7: "abc1234", message: "示例提交：优化 GitHub 订阅模板", author: "octocat", date: new Date().toISOString(), url: "#", files: [{ filename: "src/index.ts", status: "modified", additions: 18, deletions: 4, patch: "@@ -1,2 +1,3 @@\n+new line\n-old line" }] }]
-    : type === "comments"
-      ? [{ number: 12, title: "示例讨论", body: "这是一条评论内容", author: "octocat", created_at: new Date().toISOString(), url: "#", source: "issue" }]
-      : type === "actions"
-        ? [{ id: 1, name: "CI", run_number: 42, status: "completed", conclusion: "success", actor: "octocat", event: "push", head_branch: "main", created_at: new Date().toISOString(), url: "#" }]
-        : [{ number: 8, title: "示例 Issue/PR 标题", state: "open", action: "opened", author: "octocat", created_at: new Date().toISOString(), url: "#", labels: [{ name: "bug", color: "d73a4a" }] }]
-  return html
-    .replace(/\{\{repo\}\}/g, "owner/example-repo")
-    .replace(/\{\{count\}\}/g, "1")
-    .replace(/\{\{type\}\}/g, TEMPLATE_TYPES.find((t) => t.value === type)?.label || type)
-    .replace(/\{\{time\}\}/g, new Date().toLocaleString("zh-CN"))
-    .replace(/\{\{items\}\}/g, JSON.stringify(items))
-}
-
-function Section({ title, icon, children }: { title: string; icon?: JSX.Element; children: React.ReactNode }) {
+function Section({ title, icon, children }: { title: string; icon?: React.JSX.Element; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2.5 mb-5">
