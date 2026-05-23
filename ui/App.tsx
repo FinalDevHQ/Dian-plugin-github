@@ -73,7 +73,7 @@ export default function App() {
 
       {/* 主内容区 */}
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-8 py-6">
+        <div className="px-10 py-6">
           {pages[page]}
         </div>
       </main>
