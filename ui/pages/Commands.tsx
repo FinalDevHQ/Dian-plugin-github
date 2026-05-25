@@ -35,7 +35,7 @@ export default function CommandsPage({ showToast }: { showToast: (msg: string, o
   const save = async (updated: Config) => {
     setSaving(true)
     try {
-      const { tokenCount: _, ...payload } = updated as any
+      const { tokenCount: _, token: _t, tokens: _ts, ...payload } = updated as any
       await api("/config", payload)
     } catch (e: any) {
       showToast(`保存失败: ${e.message}`, false)

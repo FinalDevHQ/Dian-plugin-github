@@ -72,7 +72,7 @@ export default function TemplatePage({ showToast }: { showToast: (msg: string, o
     if (!cfg) return
     setSaving(true)
     try {
-      const { tokenCount: _, ...payload } = cfg as any
+      const { tokenCount: _, token: _t, tokens: _ts, ...payload } = cfg as any
       await api("/config", payload)
       showToast("保存成功")
       load()

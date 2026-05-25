@@ -6,6 +6,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
   const [cfg, setCfg] = useState<Config | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tokensDirty, setTokensDirty] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -13,6 +14,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
       if (r.config) {
         setCfg(r.config)
         setError(null)
+        setTokensDirty(false)
       } else {
         setError(r.error || "返回数据格式错误")
       }
@@ -29,9 +31,17 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
     if (!cfg) return
     setSaving(true)
     try {
-      const { tokenCount: _, ...payload } = cfg as any
+      const { tokenCount: _, tokens: _tokens, ...rest } = cfg as any
+      const payload: Record<string, unknown> = { ...rest }
+      // 只在用户实际修改了 tokens 时才发送（避免脱敏占位符 "***" 覆盖真实 token）
+      if (tokensDirty && Array.isArray(_tokens)) {
+        const cleaned = _tokens.filter((t: string) => t && t !== "***")
+        // 用 null 表示用户明确删除了所有 token（而非未修改）
+        payload.tokens = cleaned.length > 0 ? cleaned : null
+      }
       await api("/config", payload)
       showToast("保存成功")
+      setTokensDirty(false)
       load()
     } catch (e: any) {
       showToast(`保存失败: ${e.message || e}`, false)
@@ -85,11 +95,12 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
                       const newTokens = [...cfg.tokens]
                       newTokens[i] = e.target.value
                       update({ tokens: newTokens })
+                      setTokensDirty(true)
                     }}
                     placeholder="ghp_xxxx"
                   />
                   <button
-                    onClick={() => update({ tokens: cfg.tokens.filter((_, j) => j !== i) })}
+                    onClick={() => { update({ tokens: cfg.tokens.filter((_, j) => j !== i) }); setTokensDirty(true) }}
                     className="h-9 rounded-lg border border-red-200 bg-white px-2 text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors shrink-0"
                   >
                     删除
@@ -97,7 +108,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
                 </div>
               ))}
               <button
-                onClick={() => update({ tokens: [...(cfg.tokens || []), ""] })}
+                onClick={() => { update({ tokens: [...(cfg.tokens || []), ""] }); setTokensDirty(true) }}
                 className="h-9 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-medium text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition-colors"
               >
                 + 添加 Token

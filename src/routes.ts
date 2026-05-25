@@ -62,10 +62,19 @@ export function setupRoutes(
     if (body.token !== undefined && body.token !== "***") {
       config.token = String(body.token);
     }
-    if (body.tokens !== undefined && Array.isArray(body.tokens)) {
-      config.tokens = (body.tokens as string[]).filter(
-        (t) => t && t !== "***",
-      ).map(String);
+    if (body.tokens !== undefined) {
+      if (body.tokens === null) {
+        // UI 发送 null 表示用户明确删除了所有 token
+        config.tokens = [];
+      } else if (Array.isArray(body.tokens)) {
+        // 过滤掉脱敏占位符 "***"；如果过滤后为空但原数组非空，说明 UI 没有修改 token，保持原值
+        const cleaned = (body.tokens as string[]).filter(
+          (t) => t && t !== "***",
+        ).map(String);
+        if (cleaned.length > 0 || (config.tokens || []).length === 0) {
+          config.tokens = cleaned;
+        }
+      }
     }
     if (body.apiBase !== undefined) config.apiBase = String(body.apiBase);
     if (body.interval !== undefined) {
