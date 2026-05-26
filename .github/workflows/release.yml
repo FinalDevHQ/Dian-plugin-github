@@ -2,106 +2,61 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - "package.json"
+    branches: [main]
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      # 1. 拉取本仓库
-      - name: Checkout plugin
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. 读取当前 package.json 版本
-      - name: Get current version
-        id: current
+      - name: Read version from package.json
+        id: pkg
         run: |
-          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Current version: ${VERSION}"
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
 
-      # 3. 检查该版本是否已存在 Release
-      - name: Check if release exists
+      - name: Check if tag exists
         id: check
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "v${{ steps.current.outputs.version }}" > /dev/null 2>&1; then
+          if git rev-parse "${{ steps.pkg.outputs.version }}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release v${{ steps.current.outputs.version }} already exists, skipping"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Release v${{ steps.current.outputs.version }} not found, will create"
           fi
 
-      # 4. 拉取主仓库（提供 packages/plugin-runtime 等本地依赖）
-      - name: Checkout Dian monorepo
-        if: steps.check.outputs.exists == 'false'
-        uses: actions/checkout@v4
-        with:
-          repository: FinalDevHQ/Dian
-          path: dian
+      - name: Skip if tag already exists
+        if: steps.check.outputs.exists == 'true'
+        run: echo "Tag ${{ steps.pkg.outputs.version }} already exists, skipping release."
 
-      # 5. 用本仓库内容覆盖 monorepo 里的 Dian-plugin-github 子目录
-      - name: Overlay plugin into monorepo
+      - uses: actions/setup-node@v4
         if: steps.check.outputs.exists == 'false'
-        uses: actions/checkout@v4
-        with:
-          path: dian/Dian-plugin-github
-
-      - name: Setup Node.js
-        if: steps.check.outputs.exists == 'false'
-        uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: dian/package-lock.json
 
-      # 6. 在 monorepo 根安装全部依赖
-      - name: Install dependencies
+      - name: Install & Build
         if: steps.check.outputs.exists == 'false'
-        working-directory: dian
-        run: npm ci
-
-      # 7. 构建 packages（plugin-runtime 等本地依赖需要先编译出 dist）
-      - name: Build packages
-        if: steps.check.outputs.exists == 'false'
-        working-directory: dian
-        run: npm run build -w packages
-
-      # 7.5 安装插件自身的 devDependencies（tsup, vite 等）
-      - name: Install plugin dependencies
-        if: steps.check.outputs.exists == 'false'
-        working-directory: dian/Dian-plugin-github
-        run: npm install
-
-      # 8. 打包插件
-      - name: Pack plugin
-        if: steps.check.outputs.exists == 'false'
-        working-directory: dian/Dian-plugin-github
-        run: npm run pack
-
-      # 9. 读取 zip 文件名
-      - name: Resolve zip filename
-        if: steps.check.outputs.exists == 'false'
-        id: meta
-        working-directory: dian/Dian-plugin-github
         run: |
-          NAME=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).name")
-          echo "zip=${NAME}.zip" >> "$GITHUB_OUTPUT"
+          npm ci
+          npm run pack
 
-      # 10. 创建 tag + GitHub Release 并上传 zip
-      - name: Create tag and release
+      - name: Create tag
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.pkg.outputs.version }}"
+          git push origin "${{ steps.pkg.outputs.version }}"
+
+      - name: Create GitHub Release
         if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.current.outputs.version }}
-          name: v${{ steps.current.outputs.version }}
-          files: dian/Dian-plugin-github/${{ steps.meta.outputs.zip }}
+          tag_name: ${{ steps.pkg.outputs.version }}
+          files: "*.zip"
           generate_release_notes: true

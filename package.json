@@ -1,6 +1,6 @@
 {
   "name": "github-sub",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "GitHub 仓库/用户订阅推送插件",
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "pack": "npm run build && node scripts/pack.mjs"
   },
   "dependencies": {
-    "@myfinal/plugin-runtime": "^0.2.5",
+    "@myfinal/plugin-runtime": "^0.2.7",
     "@myfinal/shared": "^0.2.3",
     "reflect-metadata": "^0.2.2"
   },
