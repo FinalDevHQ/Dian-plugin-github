@@ -21,8 +21,13 @@ class PluginState {
   sendAction: SendActionFn | null = null;
 
   log(level: "info" | "warn" | "error", msg: string): void {
-    console.log(`[GitHub Sub] [${level}] ${msg}`);
-    this.pushLog(level, msg);
+    if (level !== "info" || this.config.debug) {
+      console.log(`[GitHub Sub] [${level}] ${msg}`);
+    }
+    // warn/error 始终持久化，info 仅在 debug 模式下持久化
+    if (level !== "info" || this.config.debug) {
+      this.pushLog(level, msg);
+    }
   }
 
   debug(msg: string): void {
