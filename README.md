@@ -15,6 +15,7 @@ GitHub 仓库/用户订阅推送插件，监控 Commits、Issues、Pull Requests
 - **自定义模板** — 支持为每种事件类型编写自定义 HTML 模板，左右分栏实时预览
 - **主题系统** — 内置亮色 / 暗色主题，支持自定义主题色
 - **多 Token 轮换** — 配置多个 GitHub Token 自动轮换，提升 API 速率限制（每个 5000 次/小时）
+- **Token 加密存储** — Token 使用 AES-256-GCM 加密后存储在数据库中，配置文件不留明文
 - **合并通知** — 可将同一仓库的多种更新合并为一张图片推送
 - **分支订阅** — 支持订阅多个分支，独立管理
 - **自定义指令** — 为系统指令设置别名，如 `github帮助` → `gh 帮助`
@@ -125,6 +126,26 @@ npm run pack
 
 ---
 
+## Token 安全
+
+Token 使用 **AES-256-GCM** 加密后存储在 SQLite 数据库中，配置文件 (`config.json`) 不保存任何明文 Token。
+
+- 加密密钥由 `hostname` 派生，无需额外配置
+- 首次启动时自动将 `config.json` 中的明文 Token 迁移到数据库
+- Web UI 和 HTTP API 返回 Token 时自动脱敏（显示为 `***`）
+
+---
+
+## 消息推送机制
+
+插件通过框架的 `sendAction` 回调直接发送群消息，无需额外注册：
+
+1. 首次收到群消息时，拦截器自动获取框架层 `sendAction` 并注入运行时状态
+2. 轮询引擎检测到新事件后，通过 `sendAction` 直接调用 `send_group_msg` 发送到群聊
+3. 单 Bot 模式下无需 `botId` 路由，简化了消息发送链路
+
+---
+
 ## 自定义模板
 
 在 Web UI 的「自定义模板」页面，左侧编辑 HTML 代码，右侧实时预览效果。
@@ -225,7 +246,9 @@ Dian-plugin-github/
 │   ├── extractors.ts      ← GitHub 事件数据提取
 │   ├── github.ts          ← GitHub API 请求封装
 │   ├── config.ts          ← 配置读写
-│   ├── state.ts           ← 运行时状态管理（配置/缓存/日志持久化）
+│   ├── crypto.ts          ← Token 加密工具（AES-256-GCM）
+│   ├── store.ts           ← 数据库操作（订阅/缓存/Token 持久化）
+│   ├── state.ts           ← 运行时状态管理（配置/缓存/日志/消息发送）
 │   ├── types.ts           ← TypeScript 类型定义
 │   ├── version.ts         ← 版本号
 │   └── render/

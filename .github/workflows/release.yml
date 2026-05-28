@@ -127,6 +127,8 @@ jobs:
 
           BRANCH="update-${PLUGIN_NAME}-v${PLUGIN_VERSION}"
           git checkout -b "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: update ${PLUGIN_NAME} to v${PLUGIN_VERSION}"
