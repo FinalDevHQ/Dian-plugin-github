@@ -1,12 +1,14 @@
 import type { PluginStore } from "@myfinal/plugin-runtime";
 import type { Subscription, UserSubscription, EventCache, LogEntry } from "./types.js";
 import type { PluginConfig } from "./types.js";
+import { encrypt, decrypt } from "./crypto.js";
 
 const TABLES = {
   SUBSCRIPTIONS: "github_subscriptions",
   USER_SUBSCRIPTIONS: "github_user_subscriptions",
   CACHE: "github_cache",
   LOGS: "github_logs",
+  TOKENS: "github_tokens",
 } as const;
 
 export class GitHubStore {
@@ -41,6 +43,11 @@ export class GitHubStore {
       "time INTEGER NOT NULL",
       "level TEXT NOT NULL",
       "msg TEXT NOT NULL",
+    ]);
+
+    await this.db.createTable(TABLES.TOKENS, [
+      "encrypted TEXT NOT NULL",
+      "position INTEGER NOT NULL DEFAULT 0",
     ]);
 
     await this.migrateFromConfigFile(config);
@@ -85,6 +92,54 @@ export class GitHubStore {
 
     const totalMigrated = (config.subscriptions?.length || 0) + (config.userSubscriptions?.length || 0);
     console.log(`[GitHub Sub] 迁移完成: ${totalMigrated} 条订阅已写入数据库`);
+
+    // 迁移 config.json 中的明文 token 到数据库（加密存储）
+    const allTokens = [...(config.tokens || [])];
+    if (config.token && !allTokens.includes(config.token)) {
+      allTokens.push(config.token);
+    }
+    const validTokens = allTokens.filter((t) => t && t.trim());
+    if (validTokens.length) {
+      console.log(`[GitHub Sub] 迁移 ${validTokens.length} 个 token 到数据库（加密存储）...`);
+      for (let i = 0; i < validTokens.length; i++) {
+        await this.db.insert(TABLES.TOKENS, {
+          encrypted: encrypt(validTokens[i]),
+          position: i,
+        });
+      }
+      console.log("[GitHub Sub] token 迁移完成，建议删除 config.json 中的 token/tokens 字段");
+    }
+  }
+
+  // ---- Tokens (encrypted) ----
+
+  async loadTokens(): Promise<string[]> {
+    if (!this.db) return [];
+    const rows = await this.db.query(TABLES.TOKENS, undefined, {
+      orderBy: "position",
+      order: "ASC",
+    });
+    const tokens: string[] = [];
+    for (const r of rows) {
+      try {
+        tokens.push(decrypt(r.encrypted as string));
+      } catch {
+        console.warn("[GitHub Sub] token 解密失败，跳过");
+      }
+    }
+    return tokens;
+  }
+
+  async saveTokens(tokens: string[]): Promise<void> {
+    if (!this.db) return;
+    await this.db.delete(TABLES.TOKENS);
+    const valid = tokens.filter((t) => t && t.trim());
+    for (let i = 0; i < valid.length; i++) {
+      await this.db.insert(TABLES.TOKENS, {
+        encrypted: encrypt(valid[i]),
+        position: i,
+      });
+    }
   }
 
   // ---- Subscriptions ----

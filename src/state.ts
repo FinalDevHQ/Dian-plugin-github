@@ -60,7 +60,10 @@ class PluginState {
     try {
       const dir = dirname(this.configPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), "utf-8");
+      // 写入配置时排除 token 字段，token 统一加密存储在数据库中
+      const { token, tokens, ...safeConfig } = this.config as Record<string, unknown>;
+      void token; void tokens;
+      writeFileSync(this.configPath, JSON.stringify(safeConfig, null, 2), "utf-8");
     } catch (e) {
       this.log("error", `保存配置失败: ${e}`);
     }

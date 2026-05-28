@@ -78,6 +78,11 @@ export default class GitHubSubPlugin {
       await githubStore.init(store, this.config);
       this.config.subscriptions = await githubStore.loadSubscriptions();
       this.config.userSubscriptions = await githubStore.loadUserSubscriptions();
+      // 从数据库加载加密存储的 token
+      const dbTokens = await githubStore.loadTokens();
+      if (dbTokens.length) {
+        this.config.tokens = dbTokens;
+      }
       await pluginState.loadCache();
       await pluginState.loadLogs();
       // Restart poller with DB-backed subscriptions
@@ -109,6 +114,7 @@ export default class GitHubSubPlugin {
     if (this.dbInitialized) {
       await githubStore.saveSubscriptions(this.config.subscriptions);
       await githubStore.saveUserSubscriptions(this.config.userSubscriptions || []);
+      await githubStore.saveTokens([...(this.config.tokens || []), ...(this.config.token ? [this.config.token] : [])]);
     }
     stopPoller();
     if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
