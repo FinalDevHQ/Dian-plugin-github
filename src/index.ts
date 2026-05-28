@@ -34,6 +34,7 @@ export default class GitHubSubPlugin {
     // 忽略 bot 自身发出的消息（防止 OneBot 回传 message 事件导致重复触发）
     if (ctx.event.subtype === "message_sent" || ctx.event.subtype?.includes("sent")) return;
 
+    console.log(`[logInterceptor] eventId=${ctx.event.eventId} dbInitialized=${this.dbInitialized}`);
     // Lazy DB initialization on first event (PluginStore only available during event dispatch)
     if (!this.dbInitialized && ctx.store) {
       await this.initDB(ctx.store);

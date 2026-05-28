@@ -164,25 +164,19 @@ export function setupRoutes(
 
   // ── GET /groups ──
   ctx.route("GET", "/groups", async (req, reply) => {
-    const botManager = (req as unknown as { botManager?: { getBots?: () => Array<{ sendAction: (request: { action: string; params?: Record<string, unknown> }) => Promise<{ status?: string; ok?: boolean; data?: unknown }> }> } }).botManager;
-    const bots = botManager?.getBots?.() || [];
-    if (!bots.length) {
+    const botService = (req as unknown as Record<string, unknown>).botService as
+      | { getBot?: () => { sendAction: (request: { action: string; params?: Record<string, unknown> }) => Promise<{ status?: string; ok?: boolean; data?: unknown }> } | undefined }
+      | undefined;
+    const bot = botService?.getBot?.();
+    if (!bot) {
       reply.send({ success: true, data: [], message: "当前没有在线 Bot" });
       return;
     }
 
     const groups = new Map<string, { group_id: string | number; group_name: string }>();
-    const results = await Promise.allSettled(
-      bots.map((bot) => bot.sendAction({ action: "get_group_list", params: {} })),
-    );
-
-    for (const result of results) {
-      if (result.status !== "fulfilled") continue;
-      const actionResult = result.value;
-      if (actionResult.status !== "ok" && actionResult.ok !== true) continue;
-      const data = actionResult.data;
-      if (!Array.isArray(data)) continue;
-      for (const item of data as Array<Record<string, unknown>>) {
+    const result = await bot.sendAction({ action: "get_group_list", params: {} });
+    if (result.ok && Array.isArray(result.data)) {
+      for (const item of result.data as Array<Record<string, unknown>>) {
         const groupId = item.group_id ?? item.groupId;
         if (groupId === undefined || groupId === null) continue;
         const key = String(groupId);

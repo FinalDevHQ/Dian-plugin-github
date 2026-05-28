@@ -31,6 +31,7 @@ export async function autoDetectRepoLink(ctx: EventContext, text: string, config
   const repo = extractGitHubRepo(text);
   if (!repo) return;
   pluginState.debug(`[自动识别] 检测到 GitHub 仓库链接: ${repo}`);
+  console.trace(`[autoDetectRepoLink] called for repo=${repo}`);
   const [info, readme] = await Promise.all([fetchRepoInfo(repo), fetchReadme(repo)]);
   if (!info) {
     pluginState.debug(`[自动识别] 获取仓库信息失败: ${repo}`);
