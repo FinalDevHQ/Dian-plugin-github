@@ -34,24 +34,17 @@ export default class GitHubSubPlugin {
     // 忽略 bot 自身发出的消息（防止 OneBot 回传 message 事件导致重复触发）
     if (ctx.event.subtype === "message_sent" || ctx.event.subtype?.includes("sent")) return;
 
-    console.log(`[logInterceptor] eventId=${ctx.event.eventId} dbInitialized=${this.dbInitialized}`);
     // Lazy DB initialization on first event (PluginStore only available during event dispatch)
     if (!this.dbInitialized && ctx.store) {
       await this.initDB(ctx.store);
     }
 
-    let text = extractMessageText(ctx);
-    if (ctx.event.payload.groupId) {
-      const groupId = String(ctx.event.payload.groupId);
-      const botId = ctx.event.botId;
-      pluginState.registerGroupSender(botId, groupId, async (msg) => {
-        if (Array.isArray(msg)) {
-          await ctx.sendAction("send_group_msg", { group_id: groupId, message: msg as unknown[] });
-        } else {
-          await ctx.reply(String(msg));
-        }
-      });
+    // 注入框架层 sendAction，供 poller 等非事件上下文使用
+    if (!pluginState.sendAction) {
+      pluginState.sendAction = ctx.sendAction;
     }
+
+    let text = extractMessageText(ctx);
     // 自定义指令别名无法被静态 registry pattern 预知，命中时在这里转交兼容。
     const originalText = text;
     text = this.resolveCommandAlias(text);

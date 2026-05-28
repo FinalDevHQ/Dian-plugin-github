@@ -4,6 +4,8 @@ import type { PluginConfig, EventCache, LogEntry } from "./types.js";
 import { githubStore } from "./store.js";
 import { PKG_VERSION } from "./version.js";
 
+type SendActionFn = (action: string, params?: Record<string, unknown>) => Promise<unknown>;
+
 class PluginState {
   version = PKG_VERSION;
   config: PluginConfig = { ...{} as PluginConfig };
@@ -15,8 +17,8 @@ class PluginState {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private logSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** 存储各群的 sendGroupMsg 回调，key 为 "botId:groupId"，由 index.ts 在收到群消息时注册 */
-  private groupSenders = new Map<string, (message: unknown) => Promise<void>>();
+  /** 框架层 sendAction 回调，首次事件时由 interceptor 注入 */
+  sendAction: SendActionFn | null = null;
 
   log(level: "info" | "warn" | "error", msg: string): void {
     console.log(`[GitHub Sub] [${level}] ${msg}`);
@@ -61,7 +63,7 @@ class PluginState {
       const dir = dirname(this.configPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       // 写入配置时排除 token 字段，token 统一加密存储在数据库中
-      const { token, tokens, ...safeConfig } = this.config as Record<string, unknown>;
+      const { token, tokens, ...safeConfig } = this.config as unknown as Record<string, unknown>;
       void token; void tokens;
       writeFileSync(this.configPath, JSON.stringify(safeConfig, null, 2), "utf-8");
     } catch (e) {
@@ -92,17 +94,16 @@ class PluginState {
     }
   }
 
-  /** 注册群消息发送回调（bot 级别） */
-  registerGroupSender(botId: string, groupId: string, sender: (message: unknown) => Promise<void>): void {
-    this.groupSenders.set(`${botId}:${groupId}`, sender);
-  }
-
-  /** 向指定群发送消息（按 botId 路由） */
-  async sendGroupMsg(groupId: string, message: unknown, botId?: string): Promise<void> {
-    const key = botId ? `${botId}:${groupId}` : null;
-    const sender = (key && this.groupSenders.get(key)) || this.groupSenders.get(`:${groupId}`);
-    if (sender) {
-      await sender(message);
+  /** 向指定群发送消息 */
+  async sendGroupMsg(groupId: string, message: unknown): Promise<void> {
+    if (!this.sendAction) {
+      this.log("error", `[sendGroupMsg] sendAction 未初始化，无法发送到群 ${groupId}`);
+      return;
+    }
+    try {
+      await this.sendAction("send_group_msg", { group_id: groupId, message });
+    } catch (e) {
+      this.log("error", `[sendGroupMsg] 发送失败: 群 ${groupId}, ${e}`);
     }
   }
 }
