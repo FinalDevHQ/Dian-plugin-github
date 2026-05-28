@@ -7,11 +7,12 @@ import {
 } from "@myfinal/plugin-runtime";
 
 import { PKG_VERSION } from "./version.js";
-import { loadConfig, saveConfig } from "./config.js";
+import { loadConfig } from "./config.js";
 import type { PluginConfig } from "./types.js";
 import { pluginState } from "./state.js";
+import { githubStore } from "./store.js";
 import { startPoller, stopPoller } from "./poller.js";
-import { extractMessageText, handleCommand, autoDetectRepoLink, cmdHelp } from "./commands.js";
+import { extractMessageText, extractGitHubRepo, handleCommand, autoDetectRepoLink, cmdHelp } from "./commands.js";
 import { setupRoutes } from "./routes.js";
 
 @Plugin({
@@ -25,35 +26,67 @@ export default class GitHubSubPlugin {
   private readonly startTime = Date.now();
   private config: PluginConfig = loadConfig();
   private runtimeConfigPath = "";
+  private dbInitialized = false;
 
   @Interceptor(10)
   async logInterceptor(ctx: EventContext): Promise<void> {
-    if (ctx.event.type === "message") {
-      let text = extractMessageText(ctx);
-      if (ctx.event.payload.groupId) {
-        const groupId = String(ctx.event.payload.groupId);
-        pluginState.registerGroupSender(ctx.event.payload.groupId, async (msg) => {
-          if (Array.isArray(msg)) {
-            await ctx.sendAction("send_group_msg", { group_id: groupId, message: msg as unknown[] });
-          } else {
-            await ctx.reply(String(msg));
-          }
-        });
-      }
-      // 自定义指令别名无法被静态 registry pattern 预知，命中时在这里转交兼容。
-      const originalText = text;
-      text = this.resolveCommandAlias(text);
-      if (text !== originalText && /^gh\b/i.test(text)) {
-        await handleCommand(ctx, text, this.config, () => this.syncConfig());
-        ctx.stopPropagation();
-        return;
-      }
-      if (/^gh\b/i.test(text)) {
-        return;
-      }
-      if (this.config.autoDetectRepo) {
+    if (ctx.event.type !== "message") return;
+    // 忽略 bot 自身发出的消息（防止 OneBot 回传 message 事件导致重复触发）
+    if (ctx.event.subtype === "message_sent" || ctx.event.subtype?.includes("sent")) return;
+
+    // Lazy DB initialization on first event (PluginStore only available during event dispatch)
+    if (!this.dbInitialized && ctx.store) {
+      await this.initDB(ctx.store);
+    }
+
+    let text = extractMessageText(ctx);
+    if (ctx.event.payload.groupId) {
+      const groupId = String(ctx.event.payload.groupId);
+      const botId = ctx.event.botId;
+      pluginState.registerGroupSender(botId, groupId, async (msg) => {
+        if (Array.isArray(msg)) {
+          await ctx.sendAction("send_group_msg", { group_id: groupId, message: msg as unknown[] });
+        } else {
+          await ctx.reply(String(msg));
+        }
+      });
+    }
+    // 自定义指令别名无法被静态 registry pattern 预知，命中时在这里转交兼容。
+    const originalText = text;
+    text = this.resolveCommandAlias(text);
+    if (text !== originalText && /^gh\b/i.test(text)) {
+      await handleCommand(ctx, text, this.config, () => this.syncConfig());
+      ctx.stopPropagation();
+      return;
+    }
+    if (/^gh\b/i.test(text)) {
+      return;
+    }
+    if (this.config.autoDetectRepo) {
+      const repo = extractGitHubRepo(text);
+      if (repo) {
         await autoDetectRepoLink(ctx, text, this.config);
+        ctx.stopPropagation();
       }
+    }
+  }
+
+  /** 首次收到事件时初始化数据库存储，从 DB 加载订阅数据 */
+  private async initDB(store: import("@myfinal/plugin-runtime").PluginStore): Promise<void> {
+    this.dbInitialized = true;
+    try {
+      await githubStore.init(store, this.config);
+      this.config.subscriptions = await githubStore.loadSubscriptions();
+      this.config.userSubscriptions = await githubStore.loadUserSubscriptions();
+      await pluginState.loadCache();
+      await pluginState.loadLogs();
+      // Restart poller with DB-backed subscriptions
+      stopPoller();
+      if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
+        startPoller();
+      }
+    } catch (e) {
+      console.error("[GitHub Sub] DB 初始化失败:", e);
     }
   }
 
@@ -70,9 +103,13 @@ export default class GitHubSubPlugin {
     return text;
   }
 
-  private syncConfig(): void {
+  private async syncConfig(): Promise<void> {
     pluginState.config = this.config;
-    saveConfig(this.config, this.runtimeConfigPath || undefined);
+    pluginState.saveConfig();
+    if (this.dbInitialized) {
+      await githubStore.saveSubscriptions(this.config.subscriptions);
+      await githubStore.saveUserSubscriptions(this.config.userSubscriptions || []);
+    }
     stopPoller();
     if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
       startPoller();
@@ -82,25 +119,22 @@ export default class GitHubSubPlugin {
   /** 框架 ctx.command() 注册的指令回调，转交 handleCommand 处理 */
   private async handleRegisteredCmd(ctx: EventContext, sub: string): Promise<void> {
     const text = extractMessageText(ctx);
-    // 从原始消息中提取参数部分
     const parts = text.trim().split(/\s+/);
-    // 重建完整命令文本给 handleCommand
     const fullCmd = `gh ${sub}${parts.length > 2 ? " " + parts.slice(2).join(" ") : ""}`;
     await handleCommand(ctx, fullCmd, this.config, () => this.syncConfig());
   }
 
   onSetup(ctx: PluginSetupContext): void {
     this.runtimeConfigPath = (ctx as any).configPath ?? "";
-    // 使用运行时路径重新加载配置（如果存在）
     if (this.runtimeConfigPath) {
       this.config = loadConfig(this.runtimeConfigPath);
     }
     pluginState.config = this.config;
     pluginState.configPath = this.runtimeConfigPath;
     pluginState.dataPath = (ctx as any).dataPath ?? "";
-    pluginState.loadCache();
-    pluginState.loadLogs();
 
+    // Start poller with file-based config (DB not yet available during setup)
+    // Will be restarted with DB data on first event via initDB()
     if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
       startPoller();
     }
@@ -135,8 +169,6 @@ export default class GitHubSubPlugin {
               aliases: ["subscribe", "sub", "add"],
               pattern: /^gh\s+订阅\s+.+/i,
               description: "订阅 GitHub 仓库更新",
-              usage: "gh 仓库 订阅 <owner/repo> [branch]",
-              examples: ["gh 仓库 订阅 dian/dian main", "gh 订阅 dian/dian main"],
               order: 10,
               handler: (c) => this.handleRegisteredCmd(c, "订阅"),
             },
@@ -145,8 +177,6 @@ export default class GitHubSubPlugin {
               aliases: ["unsubscribe", "unsub", "remove", "delete"],
               pattern: /^gh\s+取消\s+.+/i,
               description: "取消 GitHub 仓库订阅",
-              usage: "gh 仓库 取消 <owner/repo> [branch]",
-              examples: ["gh 仓库 取消 dian/dian main", "gh 取消 dian/dian main"],
               order: 20,
               handler: (c) => this.handleRegisteredCmd(c, "取消"),
             },
@@ -155,8 +185,6 @@ export default class GitHubSubPlugin {
               aliases: ["list", "ls"],
               pattern: /^gh\s*列表$/i,
               description: "查看当前群订阅",
-              usage: "gh 仓库 列表",
-              examples: ["gh 仓库 列表", "gh 列表"],
               order: 30,
               handler: (c) => this.handleRegisteredCmd(c, "列表"),
             },
@@ -165,8 +193,6 @@ export default class GitHubSubPlugin {
               aliases: ["all"],
               pattern: /^gh\s*全部$/i,
               description: "查看所有订阅",
-              usage: "gh 仓库 全部",
-              examples: ["gh 仓库 全部", "gh 全部"],
               order: 40,
               handler: (c) => this.handleRegisteredCmd(c, "全部"),
             },
@@ -175,8 +201,6 @@ export default class GitHubSubPlugin {
               aliases: ["enable", "on"],
               pattern: /^gh\s+开启\s+.+/i,
               description: "启用已存在的仓库订阅",
-              usage: "gh 仓库 开启 <owner/repo> [branch]",
-              examples: ["gh 仓库 开启 dian/dian main", "gh 开启 dian/dian main"],
               order: 50,
               handler: (c) => this.handleRegisteredCmd(c, "开启"),
             },
@@ -185,8 +209,6 @@ export default class GitHubSubPlugin {
               aliases: ["disable", "off"],
               pattern: /^gh\s+关闭\s+.+/i,
               description: "禁用已存在的仓库订阅",
-              usage: "gh 仓库 关闭 <owner/repo> [branch]",
-              examples: ["gh 仓库 关闭 dian/dian main", "gh 关闭 dian/dian main"],
               order: 60,
               handler: (c) => this.handleRegisteredCmd(c, "关闭"),
             },
@@ -203,8 +225,6 @@ export default class GitHubSubPlugin {
               aliases: ["follow", "watch"],
               pattern: /^gh\s+关注\s+.+/i,
               description: "关注 GitHub 用户动态",
-              usage: "gh 用户 关注 <username>",
-              examples: ["gh 用户 关注 torvalds", "gh 关注 torvalds"],
               order: 10,
               handler: (c) => this.handleRegisteredCmd(c, "关注"),
             },
@@ -213,8 +233,6 @@ export default class GitHubSubPlugin {
               aliases: ["unfollow", "unwatch"],
               pattern: /^gh\s+取关\s+.+/i,
               description: "取消关注 GitHub 用户",
-              usage: "gh 用户 取关 <username>",
-              examples: ["gh 用户 取关 torvalds", "gh 取关 torvalds"],
               order: 20,
               handler: (c) => this.handleRegisteredCmd(c, "取关"),
             },
@@ -223,8 +241,6 @@ export default class GitHubSubPlugin {
               aliases: ["following", "follow-list", "users"],
               pattern: /^gh\s*关注列表$/i,
               description: "查看关注列表",
-              usage: "gh 用户 关注列表",
-              examples: ["gh 用户 关注列表", "gh 关注列表"],
               order: 30,
               handler: (c) => this.handleRegisteredCmd(c, "关注列表"),
             },
@@ -232,5 +248,9 @@ export default class GitHubSubPlugin {
         },
       ],
     });
+  }
+
+  onStop(): void {
+    stopPoller();
   }
 }

@@ -16,13 +16,13 @@ import {
   extractCommits, extractIssues, extractPulls, extractComments, extractUserActivity,
 } from "./extractors.js";
 
-async function sendImage(groupId: string, base64: string | null, fallbackText: string): Promise<void> {
+async function sendImage(groupId: string, base64: string | null, fallbackText: string, botId?: string): Promise<void> {
   if (base64) {
     try {
       pluginState.debug(`[推送] 发送图片到群 ${groupId}，base64 长度: ${base64.length}`);
       await pluginState.sendGroupMsg(groupId, [
         { type: "image", data: { file: `base64://${base64}` } },
-      ]);
+      ], botId);
       pluginState.debug(`[推送] 图片发送成功: 群 ${groupId}`);
       return;
     } catch (e) {
@@ -31,12 +31,13 @@ async function sendImage(groupId: string, base64: string | null, fallbackText: s
   } else {
     pluginState.debug(`[推送] 渲染失败，使用文本降级: 群 ${groupId}`);
   }
-  await pluginState.sendGroupMsg(groupId, [{ type: "text", data: { text: fallbackText } }]);
+  await pluginState.sendGroupMsg(groupId, [{ type: "text", data: { text: fallbackText } }], botId);
 }
 
 interface RepoCollected {
   repo: string;
   groups: string[];
+  botId?: string;
   commits: CommitData[];
   issues: IssueData[];
   pulls: IssueData[];
@@ -47,15 +48,16 @@ interface RepoCollected {
 interface UserCollected {
   username: string;
   groups: string[];
+  botId?: string;
   items: UserActivityItem[];
 }
 
 async function checkRepo(
   repo: string, branch: string, types: EventType[],
-  groups: string[], collect?: boolean,
+  groups: string[], collect?: boolean, botId?: string,
 ): Promise<RepoCollected | null> {
-  const cacheKey = `${repo}:${branch}`;
-  const collected: RepoCollected = { repo, groups, commits: [], issues: [], pulls: [], comments: [], actions: [] };
+  const cacheKey = botId ? `${botId}:${repo}:${branch}` : `${repo}:${branch}`;
+  const collected: RepoCollected = { repo, groups, botId, commits: [], issues: [], pulls: [], comments: [], actions: [] };
   pluginState.debug(`[轮询] 检查仓库: ${repo} (分支: ${branch}, 类型: ${types.join(",")})`);
 
   const events = await fetchEvents(repo);
@@ -71,7 +73,7 @@ async function checkRepo(
 
   if (!lastKnown) {
     pluginState.cache[cacheKey] = latestId;
-    pluginState.saveCache();
+    await pluginState.saveCache();
     pluginState.log("info", `[${repo}] 首次运行，记录最新事件 ID: ${latestId}，不推送`);
     return null;
   }
@@ -90,7 +92,6 @@ async function checkRepo(
   }
 
   pluginState.cache[cacheKey] = latestId;
-  pluginState.saveCache();
 
   const eventTypes = [...new Set(newEvents.map((e) => e.type))];
   pluginState.log("info", `[${repo}] 发现 ${newEvents.length} 条新事件: ${eventTypes.join(", ")}`);
@@ -122,7 +123,7 @@ async function checkRepo(
         pluginState.log("info", `[${repo}] 推送 ${commits.length} 条新 Commit 到 ${groups.length} 个群`);
         const base64 = await renderCommits(repo, commits);
         const fallback = commitsSummary(repo, commits);
-        for (const gid of groups) await sendImage(gid, base64, fallback);
+        for (const gid of groups) await sendImage(gid, base64, fallback, botId);
       }
     }
   }
@@ -135,7 +136,7 @@ async function checkRepo(
         pluginState.log("info", `[${repo}] 推送 ${issues.length} 条新 Issue 到 ${groups.length} 个群`);
         const base64 = await renderIssues(repo, issues);
         const fallback = issuesSummary(repo, issues, "Issues");
-        for (const gid of groups) await sendImage(gid, base64, fallback);
+        for (const gid of groups) await sendImage(gid, base64, fallback, botId);
       }
     }
   }
@@ -148,7 +149,7 @@ async function checkRepo(
         pluginState.log("info", `[${repo}] 推送 ${pulls.length} 条新 PR 到 ${groups.length} 个群`);
         const base64 = await renderPulls(repo, pulls);
         const fallback = issuesSummary(repo, pulls, "Pull Requests");
-        for (const gid of groups) await sendImage(gid, base64, fallback);
+        for (const gid of groups) await sendImage(gid, base64, fallback, botId);
       }
     }
   }
@@ -165,13 +166,13 @@ async function checkRepo(
         pluginState.log("info", `[${repo}] 推送 ${comments.length} 条新评论到 ${groups.length} 个群`);
         const base64 = await renderComments(repo, comments);
         const fallback = commentsSummary(repo, comments);
-        for (const gid of groups) await sendImage(gid, base64, fallback);
+        for (const gid of groups) await sendImage(gid, base64, fallback, botId);
       }
     }
   }
 
   if (types.includes("actions")) {
-    const actionsCacheKey = `${repo}:actions`;
+    const actionsCacheKey = botId ? `${botId}:${repo}:actions` : `${repo}:actions`;
     pluginState.debug(`[轮询] ${repo}: 检查 Actions runs`);
     const runs = await fetchActionRuns(repo);
     if (runs.length) {
@@ -179,7 +180,7 @@ async function checkRepo(
       const lastKnownRun = pluginState.cache[actionsCacheKey];
       if (!lastKnownRun) {
         pluginState.cache[actionsCacheKey] = latestRunId;
-        pluginState.saveCache();
+        await pluginState.saveCache();
         pluginState.log("info", `[${repo}] Actions 首次运行，记录最新 run ID: ${latestRunId}`);
       } else if (lastKnownRun !== latestRunId) {
         const lastRunIdx = runs.findIndex((r) => String(r.id) === lastKnownRun);
@@ -191,18 +192,19 @@ async function checkRepo(
           event: r.event || "", run_number: r.run_number || 0,
         }));
         pluginState.cache[actionsCacheKey] = latestRunId;
-        pluginState.saveCache();
         if (newRuns.length) {
           if (collect) { collected.actions = newRuns; } else {
             pluginState.log("info", `[${repo}] 推送 ${newRuns.length} 条 Actions 更新到 ${groups.length} 个群`);
             const base64 = await renderActions(repo, newRuns);
             const fallback = actionsSummary(repo, newRuns);
-            for (const gid of groups) await sendImage(gid, base64, fallback);
+            for (const gid of groups) await sendImage(gid, base64, fallback, botId);
           }
         }
       }
     }
   }
+
+  await pluginState.saveCache();
 
   if (collect) {
     const hasData = collected.commits.length || collected.issues.length || collected.pulls.length || collected.comments.length || collected.actions.length;
@@ -213,8 +215,8 @@ async function checkRepo(
 
 const sentUserEventIds = new Map<string, Set<string>>();
 
-async function checkUser(username: string, groups: string[], collect?: boolean): Promise<UserCollected | null> {
-  const cacheKey = `user:${username}`;
+async function checkUser(username: string, groups: string[], collect?: boolean, botId?: string): Promise<UserCollected | null> {
+  const cacheKey = botId ? `${botId}:user:${username}` : `user:${username}`;
   pluginState.debug(`[轮询] 检查用户: ${username}`);
 
   const events = await fetchUserEvents(username);
@@ -228,7 +230,7 @@ async function checkUser(username: string, groups: string[], collect?: boolean):
 
   if (!lastKnown) {
     pluginState.cache[cacheKey] = latestId;
-    pluginState.saveCache();
+    await pluginState.saveCache();
     if (!sentUserEventIds.has(username)) sentUserEventIds.set(username, new Set());
     const sent = sentUserEventIds.get(username)!;
     for (const e of events) sent.add(e.id);
@@ -262,7 +264,7 @@ async function checkUser(username: string, groups: string[], collect?: boolean):
   newEvents = newEvents.filter((e) => !sent.has(e.id));
 
   pluginState.cache[cacheKey] = latestId;
-  pluginState.saveCache();
+  await pluginState.saveCache();
 
   if (!newEvents.length) {
     pluginState.debug(`[轮询] ${username}: 新事件已推送过，跳过`);
@@ -278,12 +280,12 @@ async function checkUser(username: string, groups: string[], collect?: boolean):
   const items = extractUserActivity(newEvents, username);
   if (!items.length) return null;
 
-  if (collect) return { username, groups, items };
+  if (collect) return { username, groups, botId, items };
 
   pluginState.log("info", `[${username}] 推送 ${items.length} 条用户动态到 ${groups.length} 个群`);
   const base64 = await renderUserActivity(username, items);
   const fallback = userActivitySummary(username, items);
-  for (const gid of groups) await sendImage(gid, base64, fallback);
+  for (const gid of groups) await sendImage(gid, base64, fallback, botId);
   return null;
 }
 
@@ -305,7 +307,7 @@ export async function poll(): Promise<void> {
     const repoResults: RepoCollected[] = [];
     const repoPromises = activeSubs.map(async (sub) => {
       try {
-        const result = await checkRepo(sub.repo, sub.branch, sub.types, sub.groups, merge);
+        const result = await checkRepo(sub.repo, sub.branch, sub.types, sub.groups, merge, sub.botId);
         if (merge && result) return result;
       } catch (e) {
         pluginState.log("error", `轮询 ${sub.repo} 失败: ${e}`);
@@ -318,7 +320,7 @@ export async function poll(): Promise<void> {
     const userResults: UserCollected[] = [];
     const userPromises = activeUsers.map(async (userSub) => {
       try {
-        const result = await checkUser(userSub.username, userSub.groups, merge);
+        const result = await checkUser(userSub.username, userSub.groups, merge, userSub.botId);
         if (merge && result) return result;
       } catch (e) {
         pluginState.log("error", `轮询用户 ${userSub.username} 失败: ${e}`);
@@ -333,15 +335,18 @@ export async function poll(): Promise<void> {
         const groupRepoMap = new Map<string, RepoCollected[]>();
         for (const r of repoResults) {
           for (const gid of r.groups) {
-            if (!groupRepoMap.has(gid)) groupRepoMap.set(gid, []);
-            groupRepoMap.get(gid)!.push(r);
+            const key = r.botId ? `${r.botId}:${gid}` : gid;
+            if (!groupRepoMap.has(key)) groupRepoMap.set(key, []);
+            groupRepoMap.get(key)!.push(r);
           }
         }
-        for (const [gid, repos] of groupRepoMap) {
-          pluginState.log("info", `[合并推送] 仓库更新 ${repos.length} 个仓库 → 群 ${gid}`);
+        for (const [key, repos] of groupRepoMap) {
+          const gid = key.includes(":") ? key.split(":").slice(1).join(":") : key;
+          const botId = key.includes(":") ? key.split(":")[0] : undefined;
+          pluginState.log("info", `[合并推送] 仓库更新 ${repos.length} 个仓库 → 群 ${gid}${botId ? ` (bot=${botId})` : ""}`);
           const base64 = await renderMergedRepo(repos);
           const fallback = mergedRepoSummary(repos);
-          await sendImage(gid, base64, fallback);
+          await sendImage(gid, base64, fallback, botId);
         }
       }
 
@@ -349,15 +354,18 @@ export async function poll(): Promise<void> {
         const groupUserMap = new Map<string, UserCollected[]>();
         for (const u of userResults) {
           for (const gid of u.groups) {
-            if (!groupUserMap.has(gid)) groupUserMap.set(gid, []);
-            groupUserMap.get(gid)!.push(u);
+            const key = u.botId ? `${u.botId}:${gid}` : gid;
+            if (!groupUserMap.has(key)) groupUserMap.set(key, []);
+            groupUserMap.get(key)!.push(u);
           }
         }
-        for (const [gid, users] of groupUserMap) {
-          pluginState.log("info", `[合并推送] 用户动态 ${users.length} 个用户 → 群 ${gid}`);
+        for (const [key, users] of groupUserMap) {
+          const gid = key.includes(":") ? key.split(":").slice(1).join(":") : key;
+          const botId = key.includes(":") ? key.split(":")[0] : undefined;
+          pluginState.log("info", `[合并推送] 用户动态 ${users.length} 个用户 → 群 ${gid}${botId ? ` (bot=${botId})` : ""}`);
           const base64 = await renderMergedUsers(users);
           const fallback = mergedUsersSummary(users);
-          await sendImage(gid, base64, fallback);
+          await sendImage(gid, base64, fallback, botId);
         }
       }
     }

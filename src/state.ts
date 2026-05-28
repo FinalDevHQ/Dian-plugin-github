@@ -1,15 +1,12 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import type { PluginConfig, EventCache, LogEntry } from "./types.js";
-import { DEFAULT_CONFIG } from "./config.js";
+import { githubStore } from "./store.js";
 import { PKG_VERSION } from "./version.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 class PluginState {
   version = PKG_VERSION;
-  config: PluginConfig = { ...DEFAULT_CONFIG };
+  config: PluginConfig = { ...{} as PluginConfig };
   configPath = "";
   dataPath = "";
   cache: EventCache = {};
@@ -18,7 +15,7 @@ class PluginState {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private logSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** 存储各群的 sendGroupMsg 回调，由 index.ts 在收到群消息时注册 */
+  /** 存储各群的 sendGroupMsg 回调，key 为 "botId:groupId"，由 index.ts 在收到群消息时注册 */
   private groupSenders = new Map<string, (message: unknown) => Promise<void>>();
 
   log(level: "info" | "warn" | "error", msg: string): void {
@@ -34,6 +31,7 @@ class PluginState {
 
   clearLogs(): void {
     this.logBuffer = [];
+    githubStore.clearLogs().catch(() => {});
     this.saveLogs();
   }
 
@@ -42,27 +40,18 @@ class PluginState {
     if (this.logBuffer.length > this.maxLogEntries) {
       this.logBuffer.splice(0, this.logBuffer.length - this.maxLogEntries);
     }
-    // 防抖写入：500ms 内多次 push 只写一次磁盘
     if (this.logSaveTimer) clearTimeout(this.logSaveTimer);
     this.logSaveTimer = setTimeout(() => this.saveLogs(), 500);
   }
 
   saveLogs(): void {
-    if (!this.dataPath) return;
-    try {
-      const fp = join(this.dataPath, "logs.json");
-      if (!existsSync(this.dataPath)) mkdirSync(this.dataPath, { recursive: true });
-      writeFileSync(fp, JSON.stringify(this.logBuffer), "utf-8");
-    } catch { /* ignore */ }
+    githubStore.saveLogs(this.logBuffer).catch(() => {});
   }
 
-  loadLogs(): void {
+  async loadLogs(): Promise<void> {
     try {
-      const fp = join(this.dataPath, "logs.json");
-      if (existsSync(fp)) {
-        const data = JSON.parse(readFileSync(fp, "utf-8")) as LogEntry[];
-        if (Array.isArray(data)) this.logBuffer = data;
-      }
+      const logs = await githubStore.loadLogs();
+      if (logs.length) this.logBuffer = logs;
     } catch { /* ignore */ }
   }
 
@@ -77,28 +66,15 @@ class PluginState {
     }
   }
 
-  saveCache(): void {
-    if (!this.dataPath) return;
-    try {
-      const fp = join(this.dataPath, "cache.json");
-      if (!existsSync(this.dataPath)) mkdirSync(this.dataPath, { recursive: true });
-      writeFileSync(fp, JSON.stringify(this.cache, null, 2), "utf-8");
-    } catch { /* ignore */ }
+  async saveCache(): Promise<void> {
+    await githubStore.saveCacheBatch(this.cache);
   }
 
-  loadCache(): void {
+  async loadCache(): Promise<void> {
     try {
-      const fp = join(this.dataPath, "cache.json");
-      if (existsSync(fp)) {
-        const data = JSON.parse(readFileSync(fp, "utf-8")) as EventCache;
-        if (typeof data === "object" && data !== null) {
-          this.cache = data;
-        } else {
-          this.log("warn", "缓存文件格式异常，已重置");
-        }
-      }
+      this.cache = await githubStore.loadCache();
     } catch (e) {
-      this.log("warn", `缓存文件读取失败，已重置: ${e}`);
+      this.log("warn", `缓存加载失败，已重置: ${e}`);
     }
   }
 
@@ -113,14 +89,15 @@ class PluginState {
     }
   }
 
-  /** 注册群消息发送回调 */
-  registerGroupSender(groupId: string, sender: (message: unknown) => Promise<void>): void {
-    this.groupSenders.set(groupId, sender);
+  /** 注册群消息发送回调（bot 级别） */
+  registerGroupSender(botId: string, groupId: string, sender: (message: unknown) => Promise<void>): void {
+    this.groupSenders.set(`${botId}:${groupId}`, sender);
   }
 
-  /** 向指定群发送消息 */
-  async sendGroupMsg(groupId: string, message: unknown): Promise<void> {
-    const sender = this.groupSenders.get(groupId);
+  /** 向指定群发送消息（按 botId 路由） */
+  async sendGroupMsg(groupId: string, message: unknown, botId?: string): Promise<void> {
+    const key = botId ? `${botId}:${groupId}` : null;
+    const sender = (key && this.groupSenders.get(key)) || this.groupSenders.get(`:${groupId}`);
     if (sender) {
       await sender(message);
     }

@@ -155,6 +155,7 @@ async function cmdSubscribe(ctx: EventContext, args: string[], config: PluginCon
   }
 
   const sub: Subscription = {
+    botId: ctx.event.botId,
     repo,
     branch,
     types: ["commits", "issues", "pulls"],
@@ -285,6 +286,7 @@ async function cmdFollow(ctx: EventContext, args: string[], config: PluginConfig
   }
 
   const userSub: UserSubscription = {
+    botId: ctx.event.botId,
     username,
     groups: groupId ? [groupId] : [],
     enabled: true,

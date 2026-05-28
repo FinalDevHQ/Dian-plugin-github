@@ -1,6 +1,7 @@
 export type EventType = 'commits' | 'issues' | 'pulls' | 'actions';
 
 export interface Subscription {
+  botId?: string;
   repo: string;
   branch: string;
   types: EventType[];
@@ -10,6 +11,7 @@ export interface Subscription {
 }
 
 export interface UserSubscription {
+  botId?: string;
   username: string;
   groups: string[];
   enabled: boolean;
