@@ -1,6 +1,6 @@
 {
   "name": "github-sub",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "GitHub 仓库/用户订阅推送插件",
   "type": "module",
   "scripts": {
