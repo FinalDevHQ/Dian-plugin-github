@@ -38,6 +38,7 @@ export function setupRoutes(
         customTheme: config.customTheme || null,
         customHTML: config.customHTML || null,
         customCommands: config.customCommands || [],
+        adminConfig: config.adminConfig || { superAdmins: [], admins: [] },
       },
       subscriptions: config.subscriptions,
       userSubscriptions: config.userSubscriptions || [],
@@ -420,6 +421,77 @@ export function setupRoutes(
     } catch (e) {
       reply.send({ success: true, connected: false, error: String(e) });
     }
+  });
+
+  // ── GET /admin ──
+  ctx.route("GET", "/admin", (_req, reply) => {
+    reply.send({
+      success: true,
+      data: {
+        superAdmins: config.adminConfig?.superAdmins || [],
+        admins: config.adminConfig?.admins || [],
+      },
+    });
+  });
+
+  // ── POST /admin/super ──
+  ctx.route("POST", "/admin/super", (req, reply) => {
+    const { superAdmins } = req.body as { superAdmins?: string[] };
+    if (!Array.isArray(superAdmins)) {
+      reply.send({ success: false, error: "参数错误" });
+      return;
+    }
+    if (!config.adminConfig) {
+      config.adminConfig = { superAdmins: [], admins: [] };
+    }
+    config.adminConfig.superAdmins = superAdmins.map(String).filter(s => s.trim());
+    syncConfig();
+    reply.send({ success: true, data: config.adminConfig.superAdmins });
+  });
+
+  // ── POST /admin/add ──
+  ctx.route("POST", "/admin/add", (req, reply) => {
+    const { userId } = req.body as { userId?: string };
+    if (!userId?.trim()) {
+      reply.send({ success: false, error: "用户ID不能为空" });
+      return;
+    }
+    if (!config.adminConfig) {
+      config.adminConfig = { superAdmins: [], admins: [] };
+    }
+    if (!config.adminConfig.admins) {
+      config.adminConfig.admins = [];
+    }
+    const id = userId.trim();
+    if (config.adminConfig.admins.includes(id)) {
+      reply.send({ success: false, error: "该用户已是管理员" });
+      return;
+    }
+    config.adminConfig.admins.push(id);
+    syncConfig();
+    reply.send({ success: true, data: config.adminConfig.admins });
+  });
+
+  // ── POST /admin/remove ──
+  ctx.route("POST", "/admin/remove", (req, reply) => {
+    const { userId } = req.body as { userId?: string };
+    if (!userId?.trim()) {
+      reply.send({ success: false, error: "用户ID不能为空" });
+      return;
+    }
+    if (!config.adminConfig?.admins) {
+      reply.send({ success: false, error: "管理员列表为空" });
+      return;
+    }
+    const id = userId.trim();
+    const idx = config.adminConfig.admins.indexOf(id);
+    if (idx === -1) {
+      reply.send({ success: false, error: "该用户不是管理员" });
+      return;
+    }
+    config.adminConfig.admins.splice(idx, 1);
+    syncConfig();
+    reply.send({ success: true, data: config.adminConfig.admins });
   });
 
   // ── GET /logs ──

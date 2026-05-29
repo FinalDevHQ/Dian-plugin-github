@@ -79,3 +79,8 @@ export interface CustomCommand {
   command: string
   enabled: boolean
 }
+
+export interface AdminConfig {
+  superAdmins: string[]
+  admins: string[]
+}

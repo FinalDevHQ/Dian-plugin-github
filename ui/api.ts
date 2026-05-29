@@ -27,3 +27,26 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   }
   return res.json() as Promise<T>
 }
+
+// ── 管理员 API ──
+
+export interface AdminData {
+  superAdmins: string[]
+  admins: string[]
+}
+
+export async function getAdminConfig(): Promise<{ success: boolean; data: AdminData }> {
+  return api("/admin")
+}
+
+export async function updateSuperAdmins(superAdmins: string[]): Promise<{ success: boolean; data: string[] }> {
+  return api("/admin/super", { superAdmins })
+}
+
+export async function addAdmin(userId: string): Promise<{ success: boolean; data: string[]; error?: string }> {
+  return api("/admin/add", { userId })
+}
+
+export async function removeAdmin(userId: string): Promise<{ success: boolean; data: string[]; error?: string }> {
+  return api("/admin/remove", { userId })
+}

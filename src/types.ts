@@ -60,6 +60,7 @@ export interface PluginConfig {
   subscriptions: Subscription[];
   userSubscriptions: UserSubscription[];
   customCommands: CustomCommand[];
+  adminConfig?: AdminConfig;
 }
 
 export interface EventCache {
@@ -168,4 +169,9 @@ export interface CustomCommand {
   alias: string;
   command: string;
   enabled: boolean;
+}
+
+export interface AdminConfig {
+  superAdmins: string[];      // 大管理员用户ID列表（WebUI配置）
+  admins: string[];           // 普通管理员用户ID列表（命令添加）
 }

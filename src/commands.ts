@@ -99,6 +99,9 @@ export async function handleCommand(
     case "关注列表":
       await cmdFollowList(ctx, config);
       break;
+    case "管理员":
+      await handleAdminCommand(ctx, parts.slice(2), config, syncConfig);
+      break;
     default:
       await ctx.reply(`未知指令: ${sub}\n输入 gh 帮助 查看所有指令`);
   }
@@ -108,14 +111,15 @@ export async function cmdHelp(ctx: EventContext): Promise<void> {
   await ctx.reply(
     `🐙 GitHub 订阅指令:\n` +
     `gh 订阅 <owner/repo> [branch] - 订阅仓库\n` +
-    `gh 取消 <owner/repo> [branch] - 取消订阅\n` +
+    `gh 取消 <owner/repo> [branch] - 取消订阅（需管理员权限）\n` +
     `gh 列表 - 查看当前群订阅\n` +
     `gh 全部 - 查看所有订阅\n` +
     `gh 开启 <owner/repo> [branch] - 启用订阅\n` +
     `gh 关闭 <owner/repo> [branch] - 禁用订阅\n` +
     `gh 关注 <username> - 关注用户\n` +
-    `gh 取关 <username> - 取消关注\n` +
-    `gh 关注列表 - 查看关注列表`
+    `gh 取关 <username> - 取消关注（需管理员权限）\n` +
+    `gh 关注列表 - 查看关注列表\n` +
+    `gh 管理员 帮助 - 查看管理员命令`
   );
 }
 
@@ -173,6 +177,13 @@ async function cmdUnsubscribe(ctx: EventContext, args: string[], config: PluginC
     await ctx.reply("用法: gh 取消 <owner/repo> [branch]");
     return;
   }
+
+  // 权限检查
+  if (!(await hasUnsubPermission(ctx, config))) {
+    await ctx.reply("❌ 权限不足，只有管理员才能取消订阅");
+    return;
+  }
+
   const repo = args[0].toLowerCase();
   const branch = args[1];
   const groupId = ctx.event.payload.groupId;
@@ -302,6 +313,13 @@ async function cmdUnfollow(ctx: EventContext, args: string[], config: PluginConf
     await ctx.reply("用法: gh 取关 <username>");
     return;
   }
+
+  // 权限检查
+  if (!(await hasUnsubPermission(ctx, config))) {
+    await ctx.reply("❌ 权限不足，只有管理员才能取消关注");
+    return;
+  }
+
   const username = args[0];
   const groupId = ctx.event.payload.groupId;
 
@@ -344,4 +362,149 @@ async function cmdFollowList(ctx: EventContext, config: PluginConfig): Promise<v
 
   const lines = subs.map((u) => `${u.enabled ? "🟢" : "🔴"} ${u.username}`);
   await ctx.reply(`📋 关注列表:\n${lines.join("\n")}`);
+}
+
+// ── 权限检查函数 ──
+
+async function getGroupMemberInfo(ctx: EventContext, groupId: string, userId: string): Promise<{ role: string } | null> {
+  try {
+    const result = await ctx.sendAction("get_group_member_info", {
+      group_id: groupId,
+      user_id: userId,
+      no_cache: false,
+    });
+    if (result?.data) {
+      return result.data as { role: string };
+    }
+  } catch {}
+  return null;
+}
+
+export async function hasUnsubPermission(ctx: EventContext, config: PluginConfig): Promise<boolean> {
+  const userId = String(ctx.event.payload.userId);
+  const groupId = ctx.event.payload.groupId ? String(ctx.event.payload.groupId) : "";
+
+  // 1. 大管理员 - 全局权限
+  if (config.adminConfig?.superAdmins?.includes(userId)) {
+    return true;
+  }
+
+  // 2. 普通管理员 - 全局权限
+  if (config.adminConfig?.admins?.includes(userId)) {
+    return true;
+  }
+
+  // 3. 群管理员 - 仅限本群
+  if (groupId) {
+    const memberInfo = await getGroupMemberInfo(ctx, groupId, userId);
+    if (memberInfo && (memberInfo.role === 'owner' || memberInfo.role === 'admin')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ── 管理员命令 ──
+
+export async function handleAdminCommand(
+  ctx: EventContext,
+  args: string[],
+  config: PluginConfig,
+  syncConfig: () => void,
+): Promise<void> {
+  const sub = args[0];
+  const targetUserId = args[1]?.replace(/[@]/g, "");
+
+  switch (sub) {
+    case "添加":
+      await cmdAdminAdd(ctx, targetUserId, config, syncConfig);
+      break;
+    case "删除":
+      await cmdAdminRemove(ctx, targetUserId, config, syncConfig);
+      break;
+    case "列表":
+      await cmdAdminList(ctx, config);
+      break;
+    case "帮助":
+    default:
+      await cmdAdminHelp(ctx);
+      break;
+  }
+}
+
+async function cmdAdminAdd(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => void): Promise<void> {
+  if (!targetUserId) {
+    await ctx.reply("用法: gh 管理员 添加 @用户");
+    return;
+  }
+
+  // 只有大管理员可以添加普通管理员
+  const userId = String(ctx.event.payload.userId);
+  if (!config.adminConfig?.superAdmins?.includes(userId)) {
+    await ctx.reply("❌ 权限不足，只有大管理员才能添加普通管理员");
+    return;
+  }
+
+  if (!config.adminConfig) {
+    config.adminConfig = { superAdmins: [], admins: [] };
+  }
+  if (!config.adminConfig.admins) {
+    config.adminConfig.admins = [];
+  }
+
+  if (config.adminConfig.admins.includes(targetUserId)) {
+    await ctx.reply(`用户 ${targetUserId} 已经是管理员`);
+    return;
+  }
+
+  config.adminConfig.admins.push(targetUserId);
+  syncConfig();
+  await ctx.reply(`✅ 已将 ${targetUserId} 添加为普通管理员`);
+}
+
+async function cmdAdminRemove(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => void): Promise<void> {
+  if (!targetUserId) {
+    await ctx.reply("用法: gh 管理员 删除 @用户");
+    return;
+  }
+
+  // 只有大管理员可以删除普通管理员
+  const userId = String(ctx.event.payload.userId);
+  if (!config.adminConfig?.superAdmins?.includes(userId)) {
+    await ctx.reply("❌ 权限不足，只有大管理员才能删除普通管理员");
+    return;
+  }
+
+  if (!config.adminConfig?.admins?.includes(targetUserId)) {
+    await ctx.reply(`用户 ${targetUserId} 不是管理员`);
+    return;
+  }
+
+  config.adminConfig.admins = config.adminConfig.admins.filter(id => id !== targetUserId);
+  syncConfig();
+  await ctx.reply(`✅ 已将 ${targetUserId} 从管理员列表中移除`);
+}
+
+async function cmdAdminList(ctx: EventContext, config: PluginConfig): Promise<void> {
+  const superAdmins = config.adminConfig?.superAdmins || [];
+  const admins = config.adminConfig?.admins || [];
+
+  let msg = "👑 管理员列表:\n\n";
+  msg += "大管理员:\n";
+  msg += superAdmins.length ? superAdmins.map(id => `  - ${id}`).join("\n") : "  (无)\n";
+  msg += "\n普通管理员:\n";
+  msg += admins.length ? admins.map(id => `  - ${id}`).join("\n") : "  (无)";
+
+  await ctx.reply(msg);
+}
+
+async function cmdAdminHelp(ctx: EventContext): Promise<void> {
+  await ctx.reply(
+    "🔧 管理员命令:\n" +
+    "gh 管理员 添加 @用户 - 添加普通管理员\n" +
+    "gh 管理员 删除 @用户 - 删除普通管理员\n" +
+    "gh 管理员 列表 - 查看管理员列表\n" +
+    "gh 管理员 帮助 - 查看此帮助"
+  );
 }

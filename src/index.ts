@@ -246,6 +246,46 @@ export default class GitHubSubPlugin {
             },
           ],
         },
+        {
+          name: "管理员",
+          aliases: ["admin", "admins", "管理"],
+          description: "管理员管理",
+          order: 40,
+          children: [
+            {
+              name: "添加",
+              aliases: ["add"],
+              pattern: /^gh\s+管理员\s+添加\s+.+/i,
+              description: "添加普通管理员",
+              order: 10,
+              handler: (c) => this.handleRegisteredCmd(c, "管理员 添加"),
+            },
+            {
+              name: "删除",
+              aliases: ["remove", "del"],
+              pattern: /^gh\s+管理员\s+删除\s+.+/i,
+              description: "删除普通管理员",
+              order: 20,
+              handler: (c) => this.handleRegisteredCmd(c, "管理员 删除"),
+            },
+            {
+              name: "列表",
+              aliases: ["list"],
+              pattern: /^gh\s+管理员\s+列表$/i,
+              description: "查看管理员列表",
+              order: 30,
+              handler: (c) => this.handleRegisteredCmd(c, "管理员 列表"),
+            },
+            {
+              name: "帮助",
+              aliases: ["help"],
+              pattern: /^gh\s+管理员\s+帮助$/i,
+              description: "管理员命令帮助",
+              order: 40,
+              handler: (c) => this.handleRegisteredCmd(c, "管理员 帮助"),
+            },
+          ],
+        },
       ],
     });
   }

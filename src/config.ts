@@ -25,6 +25,10 @@ export const DEFAULT_CONFIG: PluginConfig = {
   subscriptions: [],
   userSubscriptions: [],
   customCommands: [],
+  adminConfig: {
+    superAdmins: [],
+    admins: [],
+  },
 };
 
 export function loadConfig(configPath?: string): PluginConfig {
