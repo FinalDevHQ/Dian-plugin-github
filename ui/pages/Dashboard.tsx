@@ -1,20 +1,31 @@
 import { useState, useEffect, useCallback } from "react"
 import { api } from "../api"
-import type { StatusResponse, ConfigResponse } from "../types"
+import type { StatusResponse, ConfigResponse, Subscription, EventType } from "../types"
 
 function fmtUptime(s: number): string {
-  const h = String(Math.floor(s / 3600)).padStart(2, "0")
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0")
-  const sec = String(s % 60).padStart(2, "0")
-  return `${h}:${m}:${sec}`
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h < 24) return `${h}h ${m}m`
+  const d = Math.floor(h / 24)
+  return `${d}d ${h % 24}h`
+}
+
+const TYPE_META: Record<EventType, { label: string; color: string; bg: string }> = {
+  commits: { label: "Commits", color: "text-emerald-600", bg: "bg-emerald-500" },
+  issues:  { label: "Issues",  color: "text-violet-600",  bg: "bg-violet-500"  },
+  pulls:   { label: "PRs",     color: "text-blue-600",    bg: "bg-blue-500"    },
+  actions: { label: "Actions", color: "text-amber-600",   bg: "bg-amber-500"   },
 }
 
 export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page: string) => void; onVersion?: (v: string) => void }) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [cfg, setCfg] = useState<ConfigResponse | null>(null)
-  const [pingResult, setPingResult] = useState<{ ok: boolean; ms?: number; error?: string } | null>(null)
+  const [pingResult, setPingResult] = useState<{ ok: boolean; ms?: number; error?: string; authenticated?: boolean } | null>(null)
   const [pinging, setPinging] = useState(false)
   const [uptime, setUptime] = useState("—")
+  const [lastPing, setLastPing] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -40,13 +51,25 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
     setPingResult(null)
     try {
       const r = await api<{ success: boolean; ms?: number; error?: string; authenticated?: boolean }>("/ping")
-      setPingResult({ ok: r.success, ms: r.ms, error: r.error })
+      setPingResult({ ok: r.success, ms: r.ms, error: r.error, authenticated: r.authenticated })
+      setLastPing(Date.now())
     } catch (e: any) {
       setPingResult({ ok: false, error: String(e) })
     } finally {
       setPinging(false)
     }
   }
+
+  const subs = cfg?.subscriptions || []
+  const typeDistribution = subs.reduce((acc, s) => {
+    s.types.forEach(t => { acc[t] = (acc[t] || 0) + 1 })
+    return acc
+  }, {} as Record<string, number>)
+
+  const enabledCount = subs.filter(s => s.enabled).length
+  const disabledCount = subs.length - enabledCount
+  const userSubCount = cfg?.userSubscriptions?.length || 0
+  const groupCount = new Set(subs.flatMap(s => s.groups)).size
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,47 +87,55 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
                 {status ? "运行中" : "加载中"}
               </span>
             </div>
-            <p className="text-sm text-slate-400 mt-0.5">v{status?.version ?? "—"}</p>
+            <p className="text-sm text-slate-400 mt-0.5">v{status?.version ?? "—"} · 轮询间隔 {status?.config.interval ?? 30}s</p>
           </div>
         </div>
+        <button
+          onClick={() => onNavigate("add")}
+          className="h-9 rounded-xl bg-slate-900 text-white px-4 text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-1.5"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          添加订阅
+        </button>
       </div>
 
-      {/* 状态卡片 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="运行时长" value={uptime} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15,15"/></svg>} accent="from-blue-500 to-blue-600" />
-        <StatCard label="仓库订阅" value={status?.repoSubscriptions ?? 0} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>} accent="from-violet-500 to-violet-600" />
-        <StatCard label="用户关注" value={status?.userSubscriptions ?? 0} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>} accent="from-amber-500 to-amber-600" />
-        <StatCard label="轮询间隔" value={`${status?.config.interval ?? 30}s`} icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5"><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>} accent="from-emerald-500 to-emerald-600" />
+      {/* 核心指标 */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatCard label="运行时长" value={uptime} icon={<ClockIcon />} accent="blue" />
+        <StatCard label="仓库订阅" value={subs.length} sub={`${enabledCount} 启用`} icon={<RepoIcon />} accent="violet" />
+        <StatCard label="用户关注" value={userSubCount} icon={<UserIcon />} accent="amber" />
+        <StatCard label="推送群数" value={groupCount} icon={<GroupIcon />} accent="emerald" />
+        <StatCard label="Token" value={cfg?.config.tokenCount ?? 0} sub={`${subs.length > 0 ? Math.round(5000 * (cfg?.config.tokenCount ?? 1) / Math.max(subs.length, 1)) : "∞"} 次/h/仓`} icon={<KeyIcon />} accent="slate" />
       </div>
 
-      {/* 主区域两栏 */}
+      {/* 主区域 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左侧：状态 + 连接测试 */}
+        {/* 左侧：状态 + 连接 */}
         <div className="lg:col-span-1 flex flex-col gap-4">
           {/* 状态快照 */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">状态快照</h3>
-            <div className="flex flex-col gap-3">
+          <Card title="运行状态" icon={<StatusIcon />}>
+            <div className="flex flex-col gap-2.5">
               <StatusRow label="GitHub Token" ok={!!cfg?.config.tokenCount} detail={cfg ? `${cfg.config.tokenCount} 个` : "未配置"} />
-              <StatusRow label="主题" ok detail={status?.config.theme ?? "light"} />
               <StatusRow label="自动识别" ok={cfg?.config.autoDetectRepo ?? true} detail={cfg?.config.autoDetectRepo ? "已开启" : "已关闭"} />
+              <StatusRow label="成员订阅" ok={cfg?.config.allowMemberSub ?? false} detail={cfg?.config.allowMemberSub ? "允许" : "禁止"} />
+              <StatusRow label="合并通知" ok={cfg?.config.mergeNotify ?? false} detail={cfg?.config.mergeNotify ? "已开启" : "已关闭"} />
               <StatusRow label="调试模式" ok={status?.config.debug ?? false} detail={status?.config.debug ? "已开启" : "已关闭"} />
+              <StatusRow label="渲染主题" ok detail={status?.config.theme ?? "light"} />
             </div>
-          </div>
+          </Card>
 
           {/* 连接测试 */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">GitHub 连接</h3>
+          <Card title="GitHub 连接" icon={<LinkIcon />}>
             <button
               onClick={testPing}
               disabled={pinging}
-              className="w-full h-10 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="w-full h-10 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               {pinging ? (
-                <span className="flex items-center justify-center gap-2">
+                <>
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                   测试中...
-                </span>
+                </>
               ) : "测试连接"}
             </button>
             {pingResult && (
@@ -113,48 +144,122 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
                   ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/10"
                   : "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/10"
               }`}>
-                {pingResult.ok ? `✓ 连接成功 (${pingResult.ms}ms)` : `✗ ${pingResult.error}`}
+                <div className="flex items-center gap-2">
+                  {pingResult.ok ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M20 6L9 17l-5-5"/></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                  )}
+                  <span>{pingResult.ok ? `连接成功 (${pingResult.ms}ms)` : pingResult.error}</span>
+                </div>
+                {pingResult.ok && pingResult.authenticated !== undefined && (
+                  <div className="mt-1.5 text-xs opacity-75">
+                    {pingResult.authenticated ? "已认证 (5000 次/h)" : "未认证 (60 次/h)"}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+            {lastPing && !pinging && (
+              <p className="text-[10px] text-slate-300 mt-2 text-center">
+                上次测试: {new Date(lastPing).toLocaleTimeString("zh-CN")}
+              </p>
+            )}
+          </Card>
         </div>
 
-        {/* 右侧：订阅列表 */}
-        <div className="lg:col-span-2">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">最近订阅</h3>
-              {cfg && cfg.subscriptions.length > 5 && (
-                <button onClick={() => onNavigate("subs")} className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors">
-                  查看全部 →
-                </button>
-              )}
-            </div>
-            {!cfg?.subscriptions.length ? (
-              <div className="py-16 text-center">
-                <div className="text-4xl mb-3 opacity-30">📦</div>
+        {/* 右侧：订阅概览 + 列表 */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          {/* 订阅分布 */}
+          {subs.length > 0 && (
+            <Card title="订阅分布" icon={<ChartIcon />}>
+              <div className="flex flex-col gap-4">
+                {/* 类型分布条 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-500">监控类型分布</span>
+                    <span className="text-[10px] text-slate-400">{subs.length} 个订阅</span>
+                  </div>
+                  <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-slate-100">
+                    {Object.entries(typeDistribution).map(([type, count]) => (
+                      <div
+                        key={type}
+                        className={`${TYPE_META[type as EventType]?.bg ?? "bg-slate-400"} rounded-full transition-all`}
+                        style={{ width: `${(count / subs.length) * 100}%` }}
+                        title={`${TYPE_META[type as EventType]?.label ?? type}: ${count}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {Object.entries(typeDistribution).map(([type, count]) => (
+                      <div key={type} className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${TYPE_META[type as EventType]?.bg ?? "bg-slate-400"}`} />
+                        <span className="text-[11px] text-slate-600">{TYPE_META[type as EventType]?.label ?? type}</span>
+                        <span className="text-[10px] text-slate-400">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* 启用/禁用状态 */}
+                {disabledCount > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="size-2 rounded-full bg-slate-300" />
+                    <span>{disabledCount} 个已禁用</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* 最近订阅 */}
+          <Card title="订阅列表" icon={<ListIcon />} action={
+            subs.length > 5 ? (
+              <button onClick={() => onNavigate("subs")} className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors">
+                查看全部 ({subs.length}) →
+              </button>
+            ) : undefined
+          }>
+            {subs.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="flex justify-center mb-3">
+                  <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-300">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                  </div>
+                </div>
                 <p className="text-sm text-slate-400">暂无订阅</p>
-                <p className="text-xs text-slate-300 mt-1">前往「添加订阅」开始使用</p>
+                <p className="text-xs text-slate-300 mt-1">点击右上角「添加订阅」开始使用</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {cfg.subscriptions.slice(0, 5).map((s, i) => (
-                  <div key={i} className="px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
-                    <div className={`size-2.5 rounded-full shrink-0 ${s.enabled ? "bg-emerald-500" : "bg-slate-300"}`} />
+              <div className="divide-y divide-slate-100 -mx-1">
+                {subs.slice(0, 8).map((s, i) => (
+                  <div key={i} className="px-1 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors rounded-lg">
+                    <div className={`size-2 rounded-full shrink-0 ${s.enabled ? "bg-emerald-500" : "bg-slate-300"}`} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-slate-800 truncate">{s.repo}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{s.branch}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-800 truncate">{s.repo}</span>
+                        {s.groups.length > 0 && (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                            {s.groups.length} 群
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-slate-400">{s.branch}</span>
+                        <span className="text-slate-200">·</span>
+                        <span className="text-[10px] text-slate-300">{new Date(s.createdAt).toLocaleDateString("zh-CN")}</span>
+                      </div>
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
+                    <div className="flex gap-1 shrink-0">
                       {s.types.map((t) => (
-                        <span key={t} className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{t}</span>
+                        <span key={t} className={`rounded-md px-1.5 py-0.5 text-[9px] font-medium ${TYPE_META[t]?.color ?? "text-slate-600"} ${TYPE_META[t]?.bg ?? "bg-slate-100"} bg-opacity-20`}>
+                          {TYPE_META[t]?.label ?? t}
+                        </span>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -166,23 +271,52 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
             <p className="text-sm font-medium text-amber-800">未配置 GitHub Token</p>
             <p className="text-xs text-amber-600 mt-0.5">API 请求限制为 60 次/小时，请前往「基础配置」添加 Token</p>
           </div>
+          <button onClick={() => onNavigate("config")} className="ml-auto shrink-0 h-8 rounded-lg bg-amber-100 text-amber-700 px-3 text-xs font-medium hover:bg-amber-200 transition-colors">
+            前往配置
+          </button>
         </div>
       )}
     </div>
   )
 }
 
-function StatCard({ label, value, icon, accent }: { label: string; value: string | number; icon: React.JSX.Element; accent: string }) {
+/* ── Sub Components ── */
+
+function Card({ title, icon, action, children }: { title: string; icon?: React.JSX.Element; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</p>
-          <p className="text-2xl font-bold text-slate-900 mt-2 tabular-nums">{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          {icon && <span className="text-slate-400">{icon}</span>}
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
         </div>
-        <div className={`p-2.5 rounded-xl bg-gradient-to-br ${accent} text-white shadow-sm`}>
-          {icon}
+        {action}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub, icon, accent }: { label: string; value: string | number; sub?: string; icon: React.JSX.Element; accent: string }) {
+  const accentMap: Record<string, { bg: string; text: string; iconBg: string }> = {
+    blue:   { bg: "from-blue-500 to-blue-600",   text: "text-blue-600",   iconBg: "bg-blue-50"   },
+    violet: { bg: "from-violet-500 to-violet-600", text: "text-violet-600", iconBg: "bg-violet-50" },
+    amber:  { bg: "from-amber-500 to-amber-600",  text: "text-amber-600",  iconBg: "bg-amber-50"  },
+    emerald:{ bg: "from-emerald-500 to-emerald-600", text: "text-emerald-600", iconBg: "bg-emerald-50" },
+    slate:  { bg: "from-slate-500 to-slate-600",  text: "text-slate-600",  iconBg: "bg-slate-50"  },
+  }
+  const a = accentMap[accent] || accentMap.slate
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2 rounded-xl ${a.iconBg}`}>
+          <span className={a.text}>{icon}</span>
         </div>
+      </div>
+      <p className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{value}</p>
+      <div className="flex items-center gap-1.5 mt-1.5">
+        <span className="text-[11px] text-slate-400">{label}</span>
+        {sub && <span className="text-[10px] text-slate-300">· {sub}</span>}
       </div>
     </div>
   )
@@ -190,12 +324,42 @@ function StatCard({ label, value, icon, accent }: { label: string; value: string
 
 function StatusRow({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <div className="flex items-center gap-2.5">
-        <span className={`size-2 rounded-full ${ok ? "bg-emerald-500" : "bg-slate-300"}`} />
-        <span className="text-sm text-slate-600">{label}</span>
+    <div className="flex items-center justify-between py-1.5">
+      <div className="flex items-center gap-2">
+        <span className={`size-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-slate-300"}`} />
+        <span className="text-xs text-slate-600">{label}</span>
       </div>
-      <span className="text-sm font-medium text-slate-800">{detail}</span>
+      <span className="text-xs font-medium text-slate-800">{detail}</span>
     </div>
   )
+}
+
+/* ── Icons ── */
+
+function ClockIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15,15"/></svg>
+}
+function RepoIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+}
+function UserIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+}
+function GroupIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+}
+function KeyIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+}
+function StatusIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+}
+function LinkIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+}
+function ChartIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+}
+function ListIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
 }

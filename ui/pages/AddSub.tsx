@@ -3,6 +3,13 @@ import { api } from "../api"
 import type { BranchInfo, GroupInfo, EventType } from "../types"
 import { GroupPicker } from "../components/GroupPicker"
 
+const TYPE_META: { value: EventType; label: string; desc: string; color: string; activeColor: string }[] = [
+  { value: "commits", label: "Commits",   desc: "代码提交",       color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300", activeColor: "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500/20" },
+  { value: "issues",  label: "Issues",    desc: "议题与讨论",     color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300", activeColor: "border-violet-500 bg-violet-50 text-violet-700 ring-1 ring-violet-500/20" },
+  { value: "pulls",   label: "Pull Requests", desc: "合并请求",   color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300", activeColor: "border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500/20" },
+  { value: "actions", label: "Actions",   desc: "CI/CD 流水线",  color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300", activeColor: "border-amber-500 bg-amber-50 text-amber-700 ring-1 ring-amber-500/20" },
+]
+
 export default function AddSub({ showToast }: { showToast: (msg: string, ok?: boolean) => void }) {
   const [repo, setRepo] = useState("")
   const [branches, setBranches] = useState<BranchInfo[]>([])
@@ -91,16 +98,13 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
     }
   }
 
-  const typeOptions: { value: EventType; label: string; color: string; activeColor: string }[] = [
-    { value: "commits", label: "Commits", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-emerald-500 bg-emerald-50 text-emerald-700" },
-    { value: "issues", label: "Issues", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-violet-500 bg-violet-50 text-violet-700" },
-    { value: "pulls", label: "Pull Requests", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-blue-500 bg-blue-50 text-blue-700" },
-    { value: "actions", label: "Actions", color: "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50", activeColor: "border-amber-500 bg-amber-50 text-amber-700" },
-  ]
-
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold text-slate-900">添加订阅</h1>
+      {/* 页头 */}
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">添加订阅</h1>
+        <p className="text-sm text-slate-400 mt-0.5">订阅仓库以接收更新通知，或关注用户动态</p>
+      </div>
 
       {/* 模式切换 */}
       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
@@ -126,106 +130,123 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
 
       {!userMode ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          {/* 仓库地址 */}
-          <div className="flex flex-col gap-2 mb-6">
-            <label className="text-xs font-medium text-slate-500">仓库地址</label>
-            <div className="flex gap-3">
-              <input
-                className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
-                placeholder="owner/repo"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetchBranches()}
-              />
-              <button
-                onClick={fetchBranches}
-                disabled={fetching}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors shrink-0"
-              >
-                {fetching ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                    获取中...
-                  </span>
-                ) : "获取分支"}
-              </button>
-            </div>
-          </div>
+          <div className="flex flex-col gap-5">
 
-          {/* 分支选择 */}
-          {branches.length > 0 && (
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-slate-500">选择分支</label>
-                <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
-                  <input type="checkbox" checked={useManual} onChange={(e) => setUseManual(e.target.checked)} className="rounded" />
-                  手动输入
-                </label>
-              </div>
-              {useManual ? (
+            {/* 仓库地址 + 获取分支 */}
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-2 block">仓库地址</label>
+              <div className="flex gap-3">
                 <input
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
-                  placeholder="分支名，默认 main"
-                  value={manualBranch}
-                  onChange={(e) => setManualBranch(e.target.value)}
+                  className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                  placeholder="owner/repo"
+                  value={repo}
+                  onChange={(e) => setRepo(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && fetchBranches()}
                 />
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {branches.map((b) => (
-                    <button
-                      key={b.name}
-                      onClick={() => setSelectedBranches((prev) => prev.includes(b.name) ? prev.filter((x) => x !== b.name) : [...prev, b.name])}
-                      className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
-                        selectedBranches.includes(b.name)
-                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      {b.name}
-                      {b.isDefault && <span className="ml-1.5 text-[9px] opacity-60">default</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 监控类型 */}
-          <div className="mb-6">
-            <label className="text-xs font-medium text-slate-500 mb-2 block">监控类型</label>
-            <div className="flex flex-wrap gap-2">
-              {typeOptions.map((t) => (
                 <button
-                  key={t.value}
-                  onClick={() => toggleType(t.value)}
-                  className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
-                    types.includes(t.value) ? t.activeColor : t.color
-                  }`}
+                  onClick={fetchBranches}
+                  disabled={fetching || !repo.includes("/")}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors shrink-0 flex items-center gap-1.5"
                 >
-                  {t.label}
+                  {fetching ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                      获取中...
+                    </>
+                  ) : "获取分支"}
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
 
-          {/* 推送群 */}
-          <div className="mb-6">
-            <label className="text-xs font-medium text-slate-500 mb-2 block">推送群</label>
-            <GroupPicker groups={groups} allGroups={allGroups} onChange={setGroups} />
-          </div>
+            {/* 分支选择 */}
+            {branches.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-slate-500">选择分支</label>
+                  <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={useManual} onChange={(e) => setUseManual(e.target.checked)} className="rounded border-slate-300" />
+                    手动输入
+                  </label>
+                </div>
+                {useManual ? (
+                  <input
+                    className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                    placeholder="分支名，默认 main"
+                    value={manualBranch}
+                    onChange={(e) => setManualBranch(e.target.value)}
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {branches.map((b) => (
+                      <button
+                        key={b.name}
+                        onClick={() => setSelectedBranches((prev) => prev.includes(b.name) ? prev.filter((x) => x !== b.name) : [...prev, b.name])}
+                        className={`rounded-xl border px-4 py-2 text-xs font-medium transition-all ${
+                          selectedBranches.includes(b.name)
+                            ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        {b.name}
+                        {b.isDefault && <span className="ml-1.5 text-[9px] opacity-60">default</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          <button
-            onClick={addRepoSub}
-            disabled={loading || !repo.includes("/")}
-            className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
-          >
-            {loading ? "添加中..." : "添加订阅"}
-          </button>
+            {/* 监控类型 */}
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-2 block">监控类型</label>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                {TYPE_META.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => toggleType(t.value)}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                      types.includes(t.value) ? t.activeColor : t.color
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold">{t.label}</div>
+                      <div className="text-[10px] opacity-60 mt-0.5">{t.desc}</div>
+                    </div>
+                    {types.includes(t.value) && (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4 shrink-0"><path d="M20 6L9 17l-5-5"/></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 推送群 */}
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-2 block">推送群</label>
+              <GroupPicker groups={groups} allGroups={allGroups} onChange={setGroups} />
+            </div>
+
+            {/* 添加按钮 */}
+            <button
+              onClick={addRepoSub}
+              disabled={loading || !repo.includes("/")}
+              className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  添加中...
+                </>
+              ) : "添加订阅"}
+            </button>
+
+          </div>
         </div>
       ) : (
+        /* 用户关注模式 */
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="max-w-md">
-            <div className="flex flex-col gap-2 mb-6">
+          <div className="max-w-xl flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-slate-500">GitHub 用户名</label>
               <input
                 className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
@@ -236,7 +257,7 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
               />
             </div>
 
-            <div className="mb-6">
+            <div>
               <label className="text-xs font-medium text-slate-500 mb-2 block">推送群</label>
               <GroupPicker groups={userGroups} allGroups={allGroups} onChange={setUserGroups} />
             </div>
@@ -244,7 +265,7 @@ export default function AddSub({ showToast }: { showToast: (msg: string, ok?: bo
             <button
               onClick={addUserSub}
               disabled={loading || !username.trim()}
-              className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm"
+              className="w-full h-11 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-sm flex items-center justify-center gap-2"
             >
               {loading ? "关注中..." : "关注用户"}
             </button>

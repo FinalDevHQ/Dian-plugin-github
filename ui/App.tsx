@@ -9,17 +9,48 @@ import CommandsPage from "./pages/Commands"
 import Logs from "./pages/Logs"
 import AdminPage from "./pages/Admin"
 
-type Page = "dashboard" | "config" | "subs" | "add" | "template" | "commands" | "logs" | "admin"
+type Page = "dashboard" | "config" | "subs" | "add" | "admin" | "template" | "commands" | "logs"
 
-const NAV: { id: Page; label: string; icon: React.JSX.Element }[] = [
-  { id: "dashboard", label: "仪表盘", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> },
-  { id: "config", label: "基础配置", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> },
-  { id: "subs", label: "订阅管理", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/></svg> },
-  { id: "add", label: "添加订阅", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> },
-  { id: "admin", label: "管理员", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
-  { id: "template", label: "自定义模板", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg> },
-  { id: "commands", label: "指令中心", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> },
-  { id: "logs", label: "调试日志", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> },
+interface NavItem {
+  id: Page
+  label: string
+  icon: React.JSX.Element
+}
+
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "概览",
+    items: [
+      { id: "dashboard", label: "仪表盘", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> },
+    ],
+  },
+  {
+    title: "订阅",
+    items: [
+      { id: "subs", label: "订阅管理", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/></svg> },
+      { id: "add", label: "添加订阅", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> },
+    ],
+  },
+  {
+    title: "设置",
+    items: [
+      { id: "config", label: "基础配置", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> },
+      { id: "admin", label: "管理员", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+      { id: "template", label: "自定义模板", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg> },
+      { id: "commands", label: "指令中心", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> },
+    ],
+  },
+  {
+    title: "工具",
+    items: [
+      { id: "logs", label: "调试日志", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> },
+    ],
+  },
 ]
 
 export default function App() {
@@ -38,10 +69,13 @@ export default function App() {
     logs: <Logs showToast={show} />,
   }
 
+  const currentSection = NAV_SECTIONS.find(s => s.items.some(i => i.id === page))
+
   return (
     <div className="flex h-screen bg-[#f8fafc]">
       {/* 侧边栏 */}
       <aside className="w-56 shrink-0 border-r border-slate-200 bg-white flex flex-col">
+        {/* Logo */}
         <div className="px-5 py-5 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 text-white text-sm shadow-sm">
@@ -53,22 +87,35 @@ export default function App() {
             </div>
           </div>
         </div>
-        <nav className="flex-1 p-3 flex flex-col gap-1">
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setPage(n.id)}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all text-left ${
-                page === n.id
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              }`}
-            >
-              {n.icon}
-              <span>{n.label}</span>
-            </button>
+
+        {/* 导航 */}
+        <nav className="flex-1 p-3 flex flex-col gap-4 overflow-y-auto">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.title}>
+              <div className="px-3 mb-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">{section.title}</span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {section.items.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => setPage(n.id)}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all text-left ${
+                      page === n.id
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    }`}
+                  >
+                    {n.icon}
+                    <span>{n.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
+
+        {/* 底部 */}
         <div className="px-5 py-4 border-t border-slate-100">
           <div className="text-[10px] text-slate-400 text-center">Dian Plugin System</div>
         </div>
