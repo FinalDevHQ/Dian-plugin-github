@@ -129,6 +129,18 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
           <div className="flex flex-col gap-4">
             <ToggleRow label="允许成员订阅" checked={cfg.allowMemberSub} onChange={(v) => update({ allowMemberSub: v })} />
             <ToggleRow label="自动识别仓库链接" checked={cfg.autoDetectRepo} onChange={(v) => update({ autoDetectRepo: v })} />
+            {cfg.autoDetectRepo && (
+              <div className="pl-3 border-l-2 border-slate-100 flex flex-col gap-3">
+                <ToggleRow label="预回复表情（处理中提示）" checked={cfg.enablePreReply} onChange={(v) => update({ enablePreReply: v })} />
+                {cfg.enablePreReply && (
+                  <>
+                    <InputRow label="检测中表情 ID" value={cfg.preReplyEmojiId || "178"} onChange={(v) => update({ preReplyEmojiId: v })} placeholder="178" />
+                    <InputRow label="成功表情 ID" value={cfg.successEmojiId || "277"} onChange={(v) => update({ successEmojiId: v })} placeholder="277" />
+                    <InputRow label="失败表情 ID" value={cfg.failEmojiId || "14"} onChange={(v) => update({ failEmojiId: v })} placeholder="14" />
+                  </>
+                )}
+              </div>
+            )}
             <ToggleRow label="合并通知模式" checked={cfg.mergeNotify} onChange={(v) => update({ mergeNotify: v })} />
           </div>
         </Section>

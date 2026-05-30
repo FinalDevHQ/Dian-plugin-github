@@ -54,6 +54,10 @@ export interface PluginConfig {
     actions?: string;
   };
   autoDetectRepo: boolean;
+  enablePreReply: boolean;
+  preReplyEmojiId: string;
+  successEmojiId: string;
+  failEmojiId: string;
   mergeNotify: boolean;
   puppeteerPlugin: string;
   webuiPort?: number;

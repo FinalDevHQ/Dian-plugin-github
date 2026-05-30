@@ -27,13 +27,31 @@ export function extractGitHubRepo(text: string): string | null {
   return `${owner}/${repo}`.toLowerCase();
 }
 
+async function setEmoji(ctx: EventContext, emojiId: string, set: boolean): Promise<void> {
+  const messageId = ctx.event.payload.messageId;
+  if (!messageId) return;
+  await ctx.sendAction("set_msg_emoji_like", {
+    message_id: Number(messageId),
+    emoji_id: emojiId,
+    set,
+  }).catch(() => {});
+}
+
 export async function autoDetectRepoLink(ctx: EventContext, text: string, config: PluginConfig): Promise<void> {
   const repo = extractGitHubRepo(text);
   if (!repo) return;
   pluginState.debug(`[自动识别] 检测到 GitHub 仓库链接: ${repo}`);
+
+  if (config.enablePreReply) {
+    await setEmoji(ctx, config.preReplyEmojiId || "178", true);
+  }
+
   const [info, readme] = await Promise.all([fetchRepoInfo(repo), fetchReadme(repo)]);
   if (!info) {
     pluginState.debug(`[自动识别] 获取仓库信息失败: ${repo}`);
+    if (config.enablePreReply) {
+      await setEmoji(ctx, config.failEmojiId || "14", true);
+    }
     return;
   }
   const groupId = ctx.event.payload.groupId ? String(ctx.event.payload.groupId) : "";
@@ -41,6 +59,11 @@ export async function autoDetectRepoLink(ctx: EventContext, text: string, config
   const hint = already ? "当前群已在该仓库的推送列表中" : `发送 gh 订阅 ${repo} ${info.default_branch} 可订阅到当前群`;
   const fallback = `${repoSummary(info)}\n${hint}`;
   const base64 = await renderRepoCard(info, readme);
+
+  if (config.enablePreReply) {
+    await setEmoji(ctx, config.successEmojiId || "277", true);
+  }
+
   if (base64) {
     const message = [
       { type: "image", data: { file: `base64://${base64}` } },

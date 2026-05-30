@@ -31,6 +31,10 @@ export function setupRoutes(
         owners: config.owners || [],
         allowMemberSub: config.allowMemberSub ?? true,
         autoDetectRepo: config.autoDetectRepo !== false,
+        enablePreReply: (config as any).enablePreReply !== false,
+        preReplyEmojiId: (config as any).preReplyEmojiId || "178",
+        successEmojiId: (config as any).successEmojiId || "277",
+        failEmojiId: (config as any).failEmojiId || "14",
         mergeNotify: config.mergeNotify ?? false,
         puppeteerPlugin: config.puppeteerPlugin || "puppeteer",
         webuiPort: (config as any).webuiPort || 3000,
@@ -91,6 +95,18 @@ export function setupRoutes(
     }
     if (body.autoDetectRepo !== undefined) {
       config.autoDetectRepo = Boolean(body.autoDetectRepo);
+    }
+    if (body.enablePreReply !== undefined) {
+      (config as any).enablePreReply = Boolean(body.enablePreReply);
+    }
+    if (body.preReplyEmojiId !== undefined) {
+      (config as any).preReplyEmojiId = String(body.preReplyEmojiId).trim() || "178";
+    }
+    if (body.successEmojiId !== undefined) {
+      (config as any).successEmojiId = String(body.successEmojiId).trim() || "277";
+    }
+    if (body.failEmojiId !== undefined) {
+      (config as any).failEmojiId = String(body.failEmojiId).trim() || "14";
     }
     if (body.mergeNotify !== undefined) {
       config.mergeNotify = Boolean(body.mergeNotify);

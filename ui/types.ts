@@ -31,6 +31,10 @@ export interface Config {
   owners: string[]
   allowMemberSub: boolean
   autoDetectRepo: boolean
+  enablePreReply: boolean
+  preReplyEmojiId: string
+  successEmojiId: string
+  failEmojiId: string
   mergeNotify: boolean
   puppeteerPlugin: string
   webuiPort: number
