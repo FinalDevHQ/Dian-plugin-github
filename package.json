@@ -1,6 +1,6 @@
 {
   "name": "github-sub",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "GitHub 仓库/用户订阅推送插件",
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "index-entry": "node scripts/index-entry.mjs"
   },
   "dependencies": {
+    "@myfinal/plugin-runtime": "^0.3.1",
     "@myfinal/shared": "^0.2.5",
     "reflect-metadata": "^0.2.2"
   },
