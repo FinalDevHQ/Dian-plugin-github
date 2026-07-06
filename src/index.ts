@@ -27,6 +27,7 @@ export default class GitHubSubPlugin {
   private config: PluginConfig = loadConfig();
   private runtimeConfigPath = "";
   private dbInitialized = false;
+  private dbInitPromise: Promise<void> | null = null;
 
   @Interceptor(10)
   async logInterceptor(ctx: EventContext): Promise<void> {
@@ -67,7 +68,15 @@ export default class GitHubSubPlugin {
 
   /** 首次收到事件时初始化数据库存储，从 DB 加载订阅数据 */
   private async initDB(store: import("@myfinal/plugin-runtime").PluginStore): Promise<void> {
-    this.dbInitialized = true;
+    if (this.dbInitialized) return;
+    if (this.dbInitPromise) return this.dbInitPromise;
+    this.dbInitPromise = this.doInitDB(store).finally(() => {
+      this.dbInitPromise = null;
+    });
+    return this.dbInitPromise;
+  }
+
+  private async doInitDB(store: import("@myfinal/plugin-runtime").PluginStore): Promise<void> {
     try {
       await githubStore.init(store, this.config);
       this.config.subscriptions = await githubStore.loadSubscriptions();
@@ -84,6 +93,7 @@ export default class GitHubSubPlugin {
       if (this.config.subscriptions.length || (this.config.userSubscriptions || []).length) {
         startPoller();
       }
+      this.dbInitialized = true;
     } catch (e) {
       console.error("[GitHub Sub] DB 初始化失败:", e);
     }
@@ -139,7 +149,7 @@ export default class GitHubSubPlugin {
       startPoller();
     }
 
-    setupRoutes(ctx, this.config, () => this.syncConfig(), this.startTime);
+    setupRoutes(ctx, this.config, () => this.syncConfig(), this.startTime, (store) => this.initDB(store));
 
     ctx.command({
       name: "gh",

@@ -203,6 +203,11 @@ export function mdBodyToHTML(raw: string | null, maxLen = 3000): string {
   s = s.replace(/^\d+\.\s+(.+)$/gm, (_content, content) => `<div style="padding-left:16px;display:flex;align-items:baseline;gap:0"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0.35;flex-shrink:0;margin-right:6px;margin-top:7px"></span><span>${content}</span></div>`);
 
   s = s.replace(/:([a-z0-9_+-]+):/g, "[$1]");
+  s = s.replace(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_m, alt, src) => {
+    const safeSrc = String(src).replace(/&amp;/g, "&");
+    if (!/^(https?:|data:image\/)/i.test(safeSrc)) return `<span style="color:#8b949e">[图片: ${alt || safeSrc}]</span>`;
+    return `<img src="${safeSrc}" alt="${alt}" style="max-width:100%;max-height:220px;border-radius:8px;margin:6px 0;border:1px solid rgba(110,118,129,.2);object-fit:contain">`;
+  });
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span style="color:#58a6ff;text-decoration:underline">$1</span>');
   s = s.replace(/^&gt;\s?(.+)$/gm, '<div style="padding:4px 12px;border-left:3px solid rgba(110,118,129,.3);color:rgba(139,148,158,1);margin:4px 0">$1</div>');
   s = s.replace(/^-{3,}$/gm, '<hr style="border:none;border-top:1px solid rgba(110,118,129,.2);margin:8px 0">');

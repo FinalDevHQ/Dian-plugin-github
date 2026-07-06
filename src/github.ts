@@ -134,14 +134,30 @@ export async function fetchReadme(repo: string): Promise<string | null> {
   const base = pluginState.config.apiBase || "https://api.github.com";
   const url = `${base}/repos/${repo}/readme`;
   pluginState.debug(`[GitHub] 获取 README: ${repo}`);
-  const data = await fetchJSON<{ content: string; encoding: string }>(url);
+  const data = await fetchJSON<{ content: string; encoding: string; download_url?: string | null }>(url);
   if (!data?.content) return null;
   try {
     const decoded = Buffer.from(data.content, "base64").toString("utf-8");
     pluginState.debug(`[GitHub] README 解码成功，长度: ${decoded.length}`);
-    return decoded;
+    return resolveReadmeImageUrls(decoded, data.download_url || undefined);
   } catch (e) {
     pluginState.log("warn", `README 解码失败: ${e}`);
     return null;
+  }
+}
+
+function resolveReadmeImageUrls(markdown: string, downloadUrl?: string): string {
+  if (!downloadUrl) return markdown;
+  return markdown.replace(/(!\[[^\]]*\]\()([^\s)]+)(\))/g, (_match, prefix: string, src: string, suffix: string) => {
+    return `${prefix}${resolveReadmeAssetUrl(src, downloadUrl)}${suffix}`;
+  });
+}
+
+function resolveReadmeAssetUrl(src: string, downloadUrl: string): string {
+  if (/^(?:https?:)?\/\//i.test(src) || src.startsWith("data:")) return src;
+  try {
+    return new URL(src, downloadUrl).toString();
+  } catch {
+    return src;
   }
 }

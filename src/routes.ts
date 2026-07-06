@@ -1,4 +1,4 @@
-import type { PluginSetupContext } from "@myfinal/plugin-runtime";
+import type { PluginSetupContext, PluginStore } from "@myfinal/plugin-runtime";
 import type { PluginConfig, EventType, UserSubscription, Subscription } from "./types.js";
 import { pluginState } from "./state.js";
 import { PKG_VERSION } from "./version.js";
@@ -7,11 +7,21 @@ import { fetchDefaultBranch, fetchBranches } from "./github.js";
 export function setupRoutes(
   ctx: PluginSetupContext,
   config: PluginConfig,
-  syncConfig: () => void,
+  syncConfig: () => Promise<void>,
   startTime: number,
+  ensureStore?: (store: PluginStore) => Promise<void>,
 ): void {
+  const withStore = <TReq extends { pluginStore?: PluginStore }, TReply>(
+    handler: (req: TReq, reply: TReply) => unknown | Promise<unknown>,
+  ) => async (req: TReq, reply: TReply) => {
+    if (ensureStore && req.pluginStore) {
+      await ensureStore(req.pluginStore);
+    }
+    return handler(req, reply);
+  };
+
   // ── GET /config ──
-  ctx.route("GET", "/config", (_req, reply) => {
+  ctx.route("GET", "/config", withStore((_req, reply) => {
     reply.send({
       success: true,
       version: PKG_VERSION,
@@ -47,10 +57,10 @@ export function setupRoutes(
       subscriptions: config.subscriptions,
       userSubscriptions: config.userSubscriptions || [],
     });
-  });
+  }));
 
   // ── POST /config ──
-  ctx.route("POST", "/config", (req, reply) => {
+  ctx.route("POST", "/config", withStore(async (req, reply) => {
     const body = req.body as Record<string, unknown>;
     if (typeof body.command === "string" && body.command.trim()) {
       config.command = body.command.trim();
@@ -133,14 +143,14 @@ export function setupRoutes(
     if (body.customCommands !== undefined && Array.isArray(body.customCommands)) {
       config.customCommands = body.customCommands as any;
     }
-    syncConfig();
+    await syncConfig();
     const safeConfig = {
       ...config,
       token: config.token ? "***" : "",
       tokens: (config.tokens || []).map((t) => (t ? "***" : "")),
     };
     reply.send({ ok: true, config: safeConfig });
-  });
+  }));
 
   // ── GET /status ──
   ctx.route("GET", "/status", (_req, reply) => {
@@ -206,7 +216,7 @@ export function setupRoutes(
   });
 
   // ── POST /sub/add ──
-  ctx.route("POST", "/sub/add", async (req, reply) => {
+  ctx.route("POST", "/sub/add", withStore(async (req, reply) => {
     const { repo: rawRepo, types, groups, branch: specifiedBranch, branches: specifiedBranches } = req.body as {
       repo?: string; types?: string[]; groups?: string[];
       branch?: string; branches?: string[];
@@ -260,13 +270,13 @@ export function setupRoutes(
       config.subscriptions.push(sub);
       added.push(sub);
     }
-    syncConfig();
+    await syncConfig();
     const msg = skipped.length ? `已添加 ${toAdd.join(", ")}，跳过已订阅: ${skipped.join(", ")}` : undefined;
     reply.send({ success: true, data: added.length === 1 ? added[0] : added, message: msg });
-  });
+  }));
 
   // ── POST /sub/update ──
-  ctx.route("POST", "/sub/update", (req, reply) => {
+  ctx.route("POST", "/sub/update", withStore(async (req, reply) => {
     const body = req.body as Record<string, any>;
     const repo = body.repo as string;
     const oldBranch = body.oldBranch as string | undefined;
@@ -287,12 +297,12 @@ export function setupRoutes(
     if (groups) sub.groups = groups;
     if (enabled !== undefined) sub.enabled = enabled;
     if (newBranch) sub.branch = newBranch;
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: sub });
-  });
+  }));
 
   // ── POST /sub/delete ──
-  ctx.route("POST", "/sub/delete", (req, reply) => {
+  ctx.route("POST", "/sub/delete", withStore(async (req, reply) => {
     const { repo, branch } = req.body as { repo?: string; branch?: string };
     const idx = config.subscriptions.findIndex(
       (s) => s.repo === repo && (!branch || s.branch === branch),
@@ -302,12 +312,12 @@ export function setupRoutes(
       return;
     }
     config.subscriptions.splice(idx, 1);
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true });
-  });
+  }));
 
   // ── POST /sub/toggle ──
-  ctx.route("POST", "/sub/toggle", (req, reply) => {
+  ctx.route("POST", "/sub/toggle", withStore(async (req, reply) => {
     const { repo, branch } = req.body as { repo?: string; branch?: string };
     const sub = config.subscriptions.find(
       (s) => s.repo === repo && (!branch || s.branch === branch),
@@ -317,12 +327,12 @@ export function setupRoutes(
       return;
     }
     sub.enabled = !sub.enabled;
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, enabled: sub.enabled });
-  });
+  }));
 
   // ── POST /user/add ──
-  ctx.route("POST", "/user/add", (req, reply) => {
+  ctx.route("POST", "/user/add", withStore(async (req, reply) => {
     const { username, groups } = req.body as { username?: string; groups?: string[] };
     const name = username?.trim();
     if (!name) {
@@ -344,12 +354,12 @@ export function setupRoutes(
       createdAt: new Date().toISOString(),
     };
     config.userSubscriptions.push(userSub);
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: userSub });
-  });
+  }));
 
   // ── POST /user/update ──
-  ctx.route("POST", "/user/update", (req, reply) => {
+  ctx.route("POST", "/user/update", withStore(async (req, reply) => {
     const { username, groups, enabled } = req.body as Partial<UserSubscription> & { username: string };
     if (!config.userSubscriptions) config.userSubscriptions = [];
     const sub = config.userSubscriptions.find((u) => u.username === username);
@@ -359,12 +369,12 @@ export function setupRoutes(
     }
     if (groups) sub.groups = groups;
     if (enabled !== undefined) sub.enabled = enabled;
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: sub });
-  });
+  }));
 
   // ── POST /user/delete ──
-  ctx.route("POST", "/user/delete", (req, reply) => {
+  ctx.route("POST", "/user/delete", withStore(async (req, reply) => {
     const { username } = req.body as { username?: string };
     if (!config.userSubscriptions) config.userSubscriptions = [];
     const idx = config.userSubscriptions.findIndex((u) => u.username === username);
@@ -373,12 +383,12 @@ export function setupRoutes(
       return;
     }
     config.userSubscriptions.splice(idx, 1);
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true });
-  });
+  }));
 
   // ── POST /user/toggle ──
-  ctx.route("POST", "/user/toggle", (req, reply) => {
+  ctx.route("POST", "/user/toggle", withStore(async (req, reply) => {
     const { username } = req.body as { username?: string };
     if (!config.userSubscriptions) config.userSubscriptions = [];
     const sub = config.userSubscriptions.find((u) => u.username === username);
@@ -387,9 +397,9 @@ export function setupRoutes(
       return;
     }
     sub.enabled = !sub.enabled;
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, enabled: sub.enabled });
-  });
+  }));
 
   // ── GET /ping ──
   ctx.route("GET", "/ping", async (_req, reply) => {
@@ -451,7 +461,7 @@ export function setupRoutes(
   });
 
   // ── POST /admin/super ──
-  ctx.route("POST", "/admin/super", (req, reply) => {
+  ctx.route("POST", "/admin/super", withStore(async (req, reply) => {
     const { superAdmins } = req.body as { superAdmins?: string[] };
     if (!Array.isArray(superAdmins)) {
       reply.send({ success: false, error: "参数错误" });
@@ -461,12 +471,12 @@ export function setupRoutes(
       config.adminConfig = { superAdmins: [], admins: [] };
     }
     config.adminConfig.superAdmins = superAdmins.map(String).filter(s => s.trim());
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: config.adminConfig.superAdmins });
-  });
+  }));
 
   // ── POST /admin/add ──
-  ctx.route("POST", "/admin/add", (req, reply) => {
+  ctx.route("POST", "/admin/add", withStore(async (req, reply) => {
     const { userId } = req.body as { userId?: string };
     if (!userId?.trim()) {
       reply.send({ success: false, error: "用户ID不能为空" });
@@ -484,12 +494,12 @@ export function setupRoutes(
       return;
     }
     config.adminConfig.admins.push(id);
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: config.adminConfig.admins });
-  });
+  }));
 
   // ── POST /admin/remove ──
-  ctx.route("POST", "/admin/remove", (req, reply) => {
+  ctx.route("POST", "/admin/remove", withStore(async (req, reply) => {
     const { userId } = req.body as { userId?: string };
     if (!userId?.trim()) {
       reply.send({ success: false, error: "用户ID不能为空" });
@@ -506,9 +516,9 @@ export function setupRoutes(
       return;
     }
     config.adminConfig.admins.splice(idx, 1);
-    syncConfig();
+    await syncConfig();
     reply.send({ success: true, data: config.adminConfig.admins });
-  });
+  }));
 
   // ── GET /logs ──
   ctx.route("GET", "/logs", (_req, reply) => {

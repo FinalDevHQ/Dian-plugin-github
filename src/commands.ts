@@ -85,7 +85,7 @@ export async function handleCommand(
   ctx: EventContext,
   text: string,
   config: PluginConfig,
-  syncConfig: () => void,
+  syncConfig: () => Promise<void>,
 ): Promise<void> {
   const parts = text.trim().split(/\s+/);
   const sub = parts[1];
@@ -146,7 +146,7 @@ export async function cmdHelp(ctx: EventContext): Promise<void> {
   );
 }
 
-async function cmdSubscribe(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdSubscribe(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!args.length) {
     await ctx.reply("用法: gh 订阅 <owner/repo> [branch]");
     return;
@@ -173,7 +173,7 @@ async function cmdSubscribe(ctx: EventContext, args: string[], config: PluginCon
   if (existing) {
     if (groupId && !existing.groups.includes(groupId)) {
       existing.groups.push(groupId);
-      syncConfig();
+      await syncConfig();
       await ctx.reply(`已将 ${repo}(${branch}) 添加到当前群推送列表`);
     } else {
       await ctx.reply(`当前群已订阅 ${repo}(${branch})`);
@@ -191,11 +191,11 @@ async function cmdSubscribe(ctx: EventContext, args: string[], config: PluginCon
     createdAt: new Date().toISOString(),
   };
   config.subscriptions.push(sub);
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已订阅 ${repo}(${branch})`);
 }
 
-async function cmdUnsubscribe(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdUnsubscribe(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!args.length) {
     await ctx.reply("用法: gh 取消 <owner/repo> [branch]");
     return;
@@ -231,7 +231,7 @@ async function cmdUnsubscribe(ctx: EventContext, args: string[], config: PluginC
       (s) => !(s.repo === repo && (!branch || s.branch === branch)),
     );
   }
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已取消订阅 ${repo}${branch ? `(${branch})` : ""}`);
 }
 
@@ -277,7 +277,7 @@ async function cmdListAll(ctx: EventContext, config: PluginConfig): Promise<void
   await ctx.reply(lines.join("\n"));
 }
 
-async function cmdToggle(ctx: EventContext, args: string[], enabled: boolean, config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdToggle(ctx: EventContext, args: string[], enabled: boolean, config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!args.length) {
     await ctx.reply(`用法: gh ${enabled ? "开启" : "关闭"} <owner/repo> [branch]`);
     return;
@@ -293,11 +293,11 @@ async function cmdToggle(ctx: EventContext, args: string[], enabled: boolean, co
     return;
   }
   sub.enabled = enabled;
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已${enabled ? "开启" : "关闭"} ${repo}${branch ? `(${branch})` : ""}`);
 }
 
-async function cmdFollow(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdFollow(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!args.length) {
     await ctx.reply("用法: gh 关注 <username>");
     return;
@@ -311,7 +311,7 @@ async function cmdFollow(ctx: EventContext, args: string[], config: PluginConfig
   if (existing) {
     if (groupId && !existing.groups.includes(groupId)) {
       existing.groups.push(groupId);
-      syncConfig();
+      await syncConfig();
       await ctx.reply(`已将 ${username} 添加到当前群推送列表`);
     } else {
       await ctx.reply(`当前群已关注 ${username}`);
@@ -327,11 +327,11 @@ async function cmdFollow(ctx: EventContext, args: string[], config: PluginConfig
     createdAt: new Date().toISOString(),
   };
   config.userSubscriptions.push(userSub);
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已关注 ${username}`);
 }
 
-async function cmdUnfollow(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdUnfollow(ctx: EventContext, args: string[], config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!args.length) {
     await ctx.reply("用法: gh 取关 <username>");
     return;
@@ -368,7 +368,7 @@ async function cmdUnfollow(ctx: EventContext, args: string[], config: PluginConf
     );
     cleanupUserEvents(username);
   }
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已取消关注 ${username}`);
 }
 
@@ -434,7 +434,7 @@ export async function handleAdminCommand(
   ctx: EventContext,
   args: string[],
   config: PluginConfig,
-  syncConfig: () => void,
+  syncConfig: () => Promise<void>,
 ): Promise<void> {
   const sub = args[0];
   const targetUserId = args[1]?.replace(/[@]/g, "");
@@ -456,7 +456,7 @@ export async function handleAdminCommand(
   }
 }
 
-async function cmdAdminAdd(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdAdminAdd(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!targetUserId) {
     await ctx.reply("用法: gh 管理员 添加 @用户");
     return;
@@ -482,11 +482,11 @@ async function cmdAdminAdd(ctx: EventContext, targetUserId: string, config: Plug
   }
 
   config.adminConfig.admins.push(targetUserId);
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已将 ${targetUserId} 添加为普通管理员`);
 }
 
-async function cmdAdminRemove(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => void): Promise<void> {
+async function cmdAdminRemove(ctx: EventContext, targetUserId: string, config: PluginConfig, syncConfig: () => Promise<void>): Promise<void> {
   if (!targetUserId) {
     await ctx.reply("用法: gh 管理员 删除 @用户");
     return;
@@ -505,7 +505,7 @@ async function cmdAdminRemove(ctx: EventContext, targetUserId: string, config: P
   }
 
   config.adminConfig.admins = config.adminConfig.admins.filter(id => id !== targetUserId);
-  syncConfig();
+  await syncConfig();
   await ctx.reply(`✅ 已将 ${targetUserId} 从管理员列表中移除`);
 }
 
