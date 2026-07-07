@@ -19,6 +19,10 @@ export async function renderToBase64(html: string): Promise<string | null> {
         type: "png",
         encoding: "base64",
         setViewport: { width: 600, height: 600, deviceScaleFactor: 1 },
+        pageGotoParams: { waitUntil: "domcontentloaded", timeout: 20000 },
+        waitForImages: true,
+        imageTimeout: 12000,
+        waitForTimeout: 500,
       }),
       signal: AbortSignal.timeout(30000),
     });
