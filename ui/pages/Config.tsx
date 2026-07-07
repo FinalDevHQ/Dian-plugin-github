@@ -226,6 +226,7 @@ export default function ConfigPage({ showToast }: { showToast: (msg: string, ok?
           <div className="flex flex-col gap-4">
             <InputRow label="Web 端口" value={String(cfg.webuiPort || 3000)} onChange={(v) => update({ webuiPort: Number(v) || 3000 } as Partial<Config>)} placeholder="3000" hint="Dian Web 服务端口" />
             <InputRow label="插件名" value={cfg.puppeteerPlugin || "puppeteer"} onChange={(v) => update({ puppeteerPlugin: v || "puppeteer" })} placeholder="puppeteer" hint="调用 /plugins/<插件名>/api/render 渲染" />
+            <InputRow label="代理" value={cfg.proxy || ""} onChange={(v) => update({ proxy: v })} placeholder="http://127.0.0.1:7890" hint="GitHub API 请求走代理，留空直连" />
           </div>
         </Section>
       </div>
