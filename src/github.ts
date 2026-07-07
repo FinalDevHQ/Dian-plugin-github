@@ -1,5 +1,6 @@
 import type { GitHubEvent, RepoInfo } from "./types.js";
 import { pluginState } from "./state.js";
+import { ProxyAgent } from "undici";
 
 let tokenIndex = 0;
 
@@ -25,11 +26,19 @@ function getHeaders(): Record<string, string> {
   return h;
 }
 
+function getProxyDispatcher(): ProxyAgent | undefined {
+  const proxy = pluginState.config.proxy;
+  return proxy ? new ProxyAgent(proxy) : undefined;
+}
+
 async function fetchJSON<T>(url: string): Promise<T | null> {
   const start = Date.now();
   try {
     pluginState.debug(`[HTTP] GET ${url}`);
-    const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(15000) });
+    const opts: RequestInit & { dispatcher?: ProxyAgent } = { headers: getHeaders(), signal: AbortSignal.timeout(15000) };
+    const dispatcher = getProxyDispatcher();
+    if (dispatcher) opts.dispatcher = dispatcher;
+    const res = await fetch(url, opts);
     const ms = Date.now() - start;
     pluginState.debug(`[HTTP] 响应: ${res.status} ${res.statusText} (${ms}ms)`);
 

@@ -3,6 +3,11 @@ import type { PluginConfig, EventType, UserSubscription, Subscription } from "./
 import { pluginState } from "./state.js";
 import { PKG_VERSION } from "./version.js";
 import { fetchDefaultBranch, fetchBranches } from "./github.js";
+import { ProxyAgent } from "undici";
+
+function proxyDispatcher(proxy?: string): ProxyAgent | undefined {
+  return proxy ? new ProxyAgent(proxy) : undefined;
+}
 
 interface RateLimitResource {
   limit: number;
@@ -60,6 +65,7 @@ export function setupRoutes(
         mergeNotify: config.mergeNotify ?? false,
         puppeteerPlugin: config.puppeteerPlugin || "puppeteer",
         webuiPort: (config as any).webuiPort || 3000,
+        proxy: config.proxy || "",
         theme: config.theme || "light",
         customTheme: config.customTheme || null,
         customHTML: config.customHTML || null,
@@ -142,6 +148,10 @@ export function setupRoutes(
       if (Number.isFinite(port) && port > 0 && port <= 65535) {
         (config as any).webuiPort = Math.floor(port);
       }
+    }
+    if (body.proxy !== undefined) {
+      const p = String(body.proxy).trim();
+      (config as any).proxy = p || "";
     }
     if (body.theme !== undefined && ["light", "dark", "custom"].includes(String(body.theme))) {
       config.theme = String(body.theme) as "light" | "dark" | "custom";
@@ -429,6 +439,7 @@ export function setupRoutes(
       const r = await fetch(`${base}/zen`, {
         headers,
         signal: AbortSignal.timeout(10000),
+        dispatcher: proxyDispatcher(config.proxy),
       });
       const ms = Date.now() - start;
       if (r.ok) {
@@ -460,6 +471,7 @@ export function setupRoutes(
             Authorization: `Bearer ${token}`,
           },
           signal: AbortSignal.timeout(10000),
+          dispatcher: proxyDispatcher(config.proxy),
         });
         const ms = Date.now() - start;
         if (!res.ok) {

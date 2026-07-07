@@ -1,6 +1,6 @@
 {
   "name": "github-sub",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "GitHub 仓库/用户订阅推送插件",
   "type": "module",
   "scripts": {
@@ -14,7 +14,8 @@
   "dependencies": {
     "@myfinal/plugin-runtime": "^0.3.1",
     "@myfinal/shared": "^0.2.5",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "undici": "^7.28.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

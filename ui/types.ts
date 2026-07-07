@@ -38,6 +38,7 @@ export interface Config {
   mergeNotify: boolean
   puppeteerPlugin: string
   webuiPort: number
+  proxy: string
   theme: ThemeMode
   customTheme: Record<string, string> | null
   customHTML: { commits?: string; issues?: string; pulls?: string; comments?: string; actions?: string } | null

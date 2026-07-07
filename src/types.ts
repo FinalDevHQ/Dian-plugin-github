@@ -61,6 +61,7 @@ export interface PluginConfig {
   mergeNotify: boolean;
   puppeteerPlugin: string;
   webuiPort?: number;
+  proxy?: string;
   subscriptions: Subscription[];
   userSubscriptions: UserSubscription[];
   customCommands: CustomCommand[];

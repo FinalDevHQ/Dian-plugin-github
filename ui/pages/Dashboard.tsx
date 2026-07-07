@@ -162,6 +162,7 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
               <StatusRow label="合并通知" ok={cfg?.config.mergeNotify ?? false} detail={cfg?.config.mergeNotify ? "已开启" : "已关闭"} />
               <StatusRow label="调试模式" ok={status?.config.debug ?? false} detail={status?.config.debug ? "已开启" : "已关闭"} />
               <StatusRow label="渲染主题" ok detail={status?.config.theme ?? "light"} />
+              <StatusRow label="代理" ok={!!cfg?.config.proxy} detail={cfg?.config.proxy && cfg.config.proxy !== "" ? "已配置" : "直连"} />
             </div>
           </Card>
 
