@@ -4,6 +4,18 @@ import { pluginState } from "./state.js";
 import { PKG_VERSION } from "./version.js";
 import { fetchDefaultBranch, fetchBranches } from "./github.js";
 
+interface RateLimitResource {
+  limit: number;
+  used: number;
+  remaining: number;
+  reset: number;
+}
+
+interface RateLimitResponse {
+  resources?: Record<string, RateLimitResource>;
+  rate?: RateLimitResource;
+}
+
 export function setupRoutes(
   ctx: PluginSetupContext,
   config: PluginConfig,
@@ -430,6 +442,39 @@ export function setupRoutes(
     }
   });
 
+  // ── GET /rate-limit ──
+  ctx.route("GET", "/rate-limit", async (_req, reply) => {
+    const base = config.apiBase || "https://api.github.com";
+    const tokens = getConfiguredTokens(config);
+    if (!tokens.length) {
+      reply.send({ success: true, data: [] });
+      return;
+    }
+
+    const data = await Promise.all(tokens.map(async (token, index) => {
+      const start = Date.now();
+      try {
+        const res = await fetch(`${base}/rate_limit`, {
+          headers: {
+            "User-Agent": "dian-plugin-github",
+            Authorization: `Bearer ${token}`,
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+        const ms = Date.now() - start;
+        if (!res.ok) {
+          return { index, name: tokenLabel(token, index), ok: false, status: res.status, ms, error: `HTTP ${res.status}` };
+        }
+        const body = await res.json() as RateLimitResponse;
+        return { index, name: tokenLabel(token, index), ok: true, status: res.status, ms, rate: body.rate, resources: body.resources || {} };
+      } catch (e) {
+        return { index, name: tokenLabel(token, index), ok: false, ms: Date.now() - start, error: String(e) };
+      }
+    }));
+
+    reply.send({ success: true, data });
+  });
+
   // ── GET /puppeteer ──
   ctx.route("GET", "/puppeteer", async (_req, reply) => {
     const plugin = config.puppeteerPlugin || "puppeteer";
@@ -533,4 +578,20 @@ export function setupRoutes(
 
   // ── Web UI ──
   ctx.ui({ staticDir: "./public", entry: "index.html" });
+}
+
+function getConfiguredTokens(config: PluginConfig): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const token of [...(config.tokens || []), config.token]) {
+    const value = token?.trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    tokens.push(value);
+  }
+  return tokens;
+}
+
+function tokenLabel(token: string, index: number): string {
+  return `Token ${index + 1} (...${token.slice(-4)})`;
 }

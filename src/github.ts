@@ -150,6 +150,8 @@ function resolveReadmeImageUrls(markdown: string, downloadUrl?: string): string 
   if (!downloadUrl) return markdown;
   return markdown.replace(/(!\[[^\]]*\]\()([^\s)]+)(\))/g, (_match, prefix: string, src: string, suffix: string) => {
     return `${prefix}${resolveReadmeAssetUrl(src, downloadUrl)}${suffix}`;
+  }).replace(/(\bsrc\s*=\s*["'])([^"']+)(["'])/gi, (_match, prefix: string, src: string, suffix: string) => {
+    return `${prefix}${resolveReadmeAssetUrl(src, downloadUrl)}${suffix}`;
   });
 }
 

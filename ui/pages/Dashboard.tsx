@@ -19,13 +19,53 @@ const TYPE_META: Record<EventType, { label: string; color: string; bg: string }>
   actions: { label: "Actions", color: "text-amber-600",   bg: "bg-amber-500"   },
 }
 
+interface RateLimitResource {
+  limit: number
+  used: number
+  remaining: number
+  reset: number
+}
+
+interface RateLimitItem {
+  index: number
+  name: string
+  ok: boolean
+  status?: number
+  ms?: number
+  error?: string
+  rate?: RateLimitResource
+  resources?: Record<string, RateLimitResource>
+}
+
+function fmtReset(ts?: number): string {
+  if (!ts) return "—"
+  return new Date(ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+}
+
 export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page: string) => void; onVersion?: (v: string) => void }) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [cfg, setCfg] = useState<ConfigResponse | null>(null)
   const [pingResult, setPingResult] = useState<{ ok: boolean; ms?: number; error?: string; authenticated?: boolean } | null>(null)
   const [pinging, setPinging] = useState(false)
+  const [rateLimits, setRateLimits] = useState<RateLimitItem[]>([])
+  const [rateLoading, setRateLoading] = useState(false)
+  const [rateError, setRateError] = useState("")
   const [uptime, setUptime] = useState("—")
   const [lastPing, setLastPing] = useState<number | null>(null)
+
+  const loadRateLimits = useCallback(async () => {
+    setRateLoading(true)
+    setRateError("")
+    try {
+      const r = await api<{ success: boolean; data: RateLimitItem[]; error?: string }>("/rate-limit")
+      if (!r.success) throw new Error(r.error || "查询失败")
+      setRateLimits(r.data || [])
+    } catch (e: any) {
+      setRateError(String(e?.message || e))
+    } finally {
+      setRateLoading(false)
+    }
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -37,6 +77,7 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadRateLimits() }, [loadRateLimits])
 
   useEffect(() => {
     if (!status?.startTime) return
@@ -169,6 +210,28 @@ export default function Dashboard({ onNavigate, onVersion }: { onNavigate: (page
 
         {/* 右侧：订阅概览 + 列表 */}
         <div className="lg:col-span-2 flex flex-col gap-4">
+          <Card title="Token 额度看板" icon={<KeyIcon />} action={
+            <button
+              onClick={loadRateLimits}
+              disabled={rateLoading}
+              className="text-xs font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50 transition-colors"
+            >
+              {rateLoading ? "刷新中..." : "刷新"}
+            </button>
+          }>
+            {rateError ? (
+              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-inset ring-red-600/10">{rateError}</div>
+            ) : rateLimits.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
+                暂无 Token，前往基础配置添加后可查看 GitHub API 剩余额度
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                {rateLimits.map((item) => <RateLimitCard key={item.index} item={item} />)}
+              </div>
+            )}
+          </Card>
+
           {/* 订阅分布 */}
           {subs.length > 0 && (
             <Card title="订阅分布" icon={<ChartIcon />}>
@@ -330,6 +393,66 @@ function StatusRow({ label, ok, detail }: { label: string; ok: boolean; detail: 
         <span className="text-xs text-slate-600">{label}</span>
       </div>
       <span className="text-xs font-medium text-slate-800">{detail}</span>
+    </div>
+  )
+}
+
+function RateLimitCard({ item }: { item: RateLimitItem }) {
+  const core = item.resources?.core || item.rate
+  const search = item.resources?.search
+  const graphql = item.resources?.graphql
+  const percent = core && core.limit > 0 ? Math.round((core.remaining / core.limit) * 100) : 0
+  const tone = percent > 50 ? "emerald" : percent > 20 ? "amber" : "red"
+  const toneClass: Record<string, string> = {
+    emerald: "bg-emerald-500 text-emerald-700 bg-emerald-50",
+    amber: "bg-amber-500 text-amber-700 bg-amber-50",
+    red: "bg-red-500 text-red-700 bg-red-50",
+  }
+
+  if (!item.ok || !core) {
+    return (
+      <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-slate-900">{item.name}</span>
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-600">失败</span>
+        </div>
+        <p className="mt-3 text-xs text-red-700">{item.error || `HTTP ${item.status || "unknown"}`}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{item.name}</div>
+          <div className="mt-1 text-[10px] text-slate-400">重置 {fmtReset(core.reset)} · {item.ms ?? "—"}ms</div>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${toneClass[tone].split(" ").slice(1).join(" ")}`}>{percent}% 剩余</span>
+      </div>
+      <div className="mt-4">
+        <div className="flex items-end justify-between mb-2">
+          <span className="text-2xl font-bold tabular-nums text-slate-900">{core.remaining}</span>
+          <span className="text-xs text-slate-400">/ {core.limit} core</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+          <div className={`h-full rounded-full ${toneClass[tone].split(" ")[0]}`} style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+        <RateMini label="Used" value={core.used} />
+        <RateMini label="Search" value={search ? `${search.remaining}/${search.limit}` : "—"} />
+        <RateMini label="GraphQL" value={graphql ? `${graphql.remaining}/${graphql.limit}` : "—"} />
+      </div>
+    </div>
+  )
+}
+
+function RateMini({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-inset ring-slate-200">
+      <div className="text-[10px] text-slate-400">{label}</div>
+      <div className="mt-0.5 truncate font-semibold tabular-nums text-slate-700">{value}</div>
     </div>
   )
 }

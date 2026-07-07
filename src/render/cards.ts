@@ -181,6 +181,8 @@ export function mdBodyToHTML(raw: string | null, maxLen = 3000): string {
     return `\x00CB${idx}\x00`;
   });
 
+  s = s.replace(/<!--[\s\S]*?-->/g, "");
+
   const inlineCodes: string[] = [];
   s = s.replace(/`([^`\n]+)`/g, (_, code) => {
     const idx = inlineCodes.length;
@@ -190,9 +192,12 @@ export function mdBodyToHTML(raw: string | null, maxLen = 3000): string {
 
   s = esc(s);
 
-  s = s.replace(/^#{3}\s+(.+)$/gm, '<div style="font-size:13px;font-weight:600;margin:10px 0 4px;border-bottom:1px solid rgba(110,118,129,.2);padding-bottom:3px">$1</div>');
-  s = s.replace(/^#{2}\s+(.+)$/gm, '<div style="font-size:14px;font-weight:700;margin:12px 0 4px;border-bottom:1px solid rgba(110,118,129,.2);padding-bottom:3px">$1</div>');
-  s = s.replace(/^#{1}\s+(.+)$/gm, '<div style="font-size:15px;font-weight:700;margin:14px 0 6px;border-bottom:1px solid rgba(110,118,129,.3);padding-bottom:4px">$1</div>');
+  s = restoreReadmeHtml(s);
+
+  s = s.replace(/^#{4,6}\s*(.+)$/gm, '<div style="font-size:12px;font-weight:700;margin:10px 0 4px;border-bottom:1px solid rgba(110,118,129,.18);padding-bottom:3px">$1</div>');
+  s = s.replace(/^#{3}\s*(.+)$/gm, '<div style="font-size:13px;font-weight:600;margin:10px 0 4px;border-bottom:1px solid rgba(110,118,129,.2);padding-bottom:3px">$1</div>');
+  s = s.replace(/^#{2}\s*(.+)$/gm, '<div style="font-size:14px;font-weight:700;margin:12px 0 4px;border-bottom:1px solid rgba(110,118,129,.2);padding-bottom:3px">$1</div>');
+  s = s.replace(/^#{1}\s*(.+)$/gm, '<div style="font-size:15px;font-weight:700;margin:14px 0 6px;border-bottom:1px solid rgba(110,118,129,.3);padding-bottom:4px">$1</div>');
 
   s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   s = s.replace(/\*(.+?)\*/g, "<i>$1</i>");
@@ -218,6 +223,30 @@ export function mdBodyToHTML(raw: string | null, maxLen = 3000): string {
   s = s.replace(/\n/g, "<br>");
 
   return s;
+}
+
+function restoreReadmeHtml(s: string): string {
+  s = s.replace(/&lt;img\b([\s\S]*?)(?:\/)?&gt;/gi, (_match, attrs: string) => {
+    const src = getEscapedAttr(attrs, "src").replace(/&amp;/g, "&");
+    if (!/^(https?:|data:image\/)/i.test(src)) return "";
+    const alt = getEscapedAttr(attrs, "alt");
+    return `<img src="${src}" alt="${alt}" style="max-width:100%;max-height:220px;border-radius:8px;margin:6px 0;border:1px solid rgba(110,118,129,.2);object-fit:contain">`;
+  });
+  s = s.replace(/&lt;h1\b[\s\S]*?&gt;/gi, '<div style="font-size:15px;font-weight:700;margin:14px 0 6px;text-align:center">');
+  s = s.replace(/&lt;h2\b[\s\S]*?&gt;/gi, '<div style="font-size:14px;font-weight:700;margin:12px 0 5px;text-align:center">');
+  s = s.replace(/&lt;h[3-6]\b[\s\S]*?&gt;/gi, '<div style="font-size:13px;font-weight:700;margin:10px 0 4px;text-align:center">');
+  s = s.replace(/&lt;\/h[1-6]&gt;/gi, "</div>");
+  s = s.replace(/&lt;(?:div|p|center)\b[\s\S]*?&gt;/gi, '<div style="margin:4px 0;text-align:center">');
+  s = s.replace(/&lt;\/(?:div|p|center)&gt;/gi, "</div>");
+  s = s.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  s = s.replace(/&lt;a\b[\s\S]*?&gt;/gi, "");
+  s = s.replace(/&lt;\/a&gt;/gi, "");
+  return s;
+}
+
+function getEscapedAttr(attrs: string, name: string): string {
+  const match = attrs.match(new RegExp(`${name}\\s*=\\s*(?:&quot;([\\s\\S]*?)&quot;|'([\\s\\S]*?)'|([^\\s]+))`, "i"));
+  return match ? (match[1] || match[2] || match[3] || "") : "";
 }
 
 export function commitsHTML(repo: string, commits: CommitData[]): string {
