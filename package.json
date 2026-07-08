@@ -12,7 +12,7 @@
     "index-entry": "node scripts/index-entry.mjs"
   },
   "dependencies": {
-    "@myfinal/plugin-runtime": "^0.3.1",
+    "@myfinal/plugin-runtime": "^0.3.2",
     "@myfinal/shared": "^0.2.5",
     "reflect-metadata": "^0.2.2",
     "undici": "^7.28.0"
